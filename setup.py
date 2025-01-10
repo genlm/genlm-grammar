@@ -9,6 +9,7 @@ requirements = [
     'arsenal @ git+https://github.com/timvieira/arsenal',
     'IPython',
     'graphviz',
+    'pandas'
 ]
 
 test_requirements = [

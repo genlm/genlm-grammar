@@ -7,13 +7,32 @@ from genlm_cfg import Float
 
 
 class CKYLM(LM):
-    """
-    Probabilistic Context-Free Grammar Language Model.
+    """Probabilistic Context-Free Grammar Language Model.
 
-    Uses CKY and the prefix grammar transformation for efficient inference.
+    Uses CKY parsing algorithm and prefix grammar transformation for efficient inference
+    over context-free grammars.
+
+    Args:
+        cfg (CFG): The context-free grammar to use as the language model
+        **kwargs: Additional arguments passed to IncrementalCKY
+
+    Attributes:
+        cfg (CFG): The original context-free grammar
+        pfg (CFG): The prefix grammar in CNF form used for incremental parsing
+        model (IncrementalCKY): The incremental CKY parser for computing probabilities
     """
 
     def __init__(self, cfg, **kwargs):
+        """Initialize a CKY-based language model.
+
+        Args:
+            cfg (CFG): The context-free grammar to use as the language model. Will be
+                converted to CNF and prefix form for incremental parsing.
+            **kwargs: Additional arguments passed to IncrementalCKY parser initialization
+
+        Raises:
+            AssertionError: If EOS token not in grammar vocabulary
+        """
         if EOS not in cfg.V:
             cfg = add_EOS(cfg)
         self.cfg = cfg
@@ -22,14 +41,36 @@ class CKYLM(LM):
         super().__init__(V=cfg.V, eos=EOS)
 
     def p_next(self, context):
+        """Compute probability distribution over next tokens given a context.
+
+        Args:
+            context: Sequence of tokens representing the prefix
+
+        Returns:
+            Normalized probability distribution over possible next tokens
+
+        Raises:
+            AssertionError: If context contains tokens not in vocabulary
+        """
         assert set(context) <= self.V, f'OOVs detected: {set(context) - self.V}'
         return self.model.p_next(context).normalize()
 
     @classmethod
     def from_string(cls, x, semiring=Float, **kwargs):
+        """Create a CKYLM from a grammar string representation.
+
+        Args:
+            x (str): String representation of the grammar
+            semiring: Semiring to use for weights (default: Float)
+            **kwargs: Additional arguments for grammar normalization
+
+        Returns:
+            CKYLM: A new language model instance
+        """
         return cls(locally_normalize(CFG.from_string(x, semiring), **kwargs))
 
     def clear_cache(self):
+        """Clear the parser's chart cache."""
         self.model.clear_cache()
 
 class IncrementalCKY:

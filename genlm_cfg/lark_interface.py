@@ -12,46 +12,52 @@ from genlm_cfg.cfg import CFG, Rule
 
 
 class LarkStuff:
-    """Utility class for leveraging the lark as a front-end syntax for specifying
-    grammars.
+    """Utility class for leveraging lark as a front-end syntax for specifying grammars.
 
-    Warning: 
-        There may be infelicity in the tokenization semantics as there is
-        no longer a prioritized or maximum-munch semantics to the tokenizer when we
-        encode it into the grammar.
+    This class provides functionality to convert Lark grammars into genlm_cfg format,
+    handling various features and edge cases in the conversion process.
 
-    Note: 
-        In conversion from lark to genlm_cfg, there are numerous features that
-        need to be handled with care.
+    Attributes:
+        raw_grammar: The original Lark grammar string
+        terminals: Terminal symbols from the Lark grammar
+        ignore_terms: Terms marked with 'ignore' directive in Lark
+        rules: Grammar production rules
 
-        * Notably, the `ignore` directive in lark is supported by concatenating
-        existing terminal class regexes with an optional prefix containing the
-        ignore terms. The semantics of this are equivalent, but the implementation
-        is not.
+    Warning:
+        The tokenization semantics may differ from Lark since prioritized/maximum-munch
+        tokenization is not preserved when encoding into the grammar.
 
-        * When lark compiles terminal class regexes to python re syntax, not all
-        features are supported by greenery.
+    Note:
+        Several features require careful handling in the conversion:
 
-        - Our implementations of `.` and `^` are in terms of negated character
-            classes, and require special handling.  In our conversion, we consider
-            negation with respect to a superset defined by `string.printable`. There
-            may be other cases we have not yet encountered, so it is important to
-            verify that conversions are correct when incorporating new grammars. We
-            expect edge cases with lookahead and lookbehind assertions to be
-            particularly problematic.
+        - The 'ignore' directive is implemented by concatenating terminal regexes with
+          an optional prefix containing ignore terms. This preserves semantics but uses
+          a different implementation.
 
-    TODO: update now that greenery has been replaced by interegular
+        - When compiling terminal regexes to Python re syntax, some features may not be
+          fully supported by the interegular library.
 
+        - Implementations of '.' and '^' use negated character classes relative to
+          string.printable. Other edge cases may exist, particularly with lookahead/lookbehind.
     """
 
     __slots__ = (
         'raw_grammar',
-        'terminals',
+        'terminals', 
         'ignore_terms',
         'rules',
     )
 
     def __init__(self, grammar, cnf=False):
+        """Initialize a LarkStuff instance.
+
+        Args:
+            grammar: A Lark grammar string
+            cnf: Whether to convert grammar to Chomsky Normal Form
+
+        Raises:
+            ValueError: If grammar does not define a 'start' rule
+        """
         self.raw_grammar = grammar
 
         builder = lark.load_grammar.GrammarBuilder()
@@ -69,22 +75,19 @@ class LarkStuff:
 
         if cnf:
             parser = lark.parsers.cyk.Parser(rules)
-            # self.instance = lark.Lark(grammar, lexer='basic', parser='cyk')
-            # self.lex = self.instance.lex
             self.rules = parser.grammar.rules
-
         else:
-            # self.parser = lark.parsers.earley.Parser(rules)
-            # self.instance = lark.Lark(grammar, parser='earley')
-            # self.lex = self.instance.lex
             self.rules = rules
 
         self.terminals = terminals
         self.ignore_terms = ignores
 
     def convert(self):
-        "Convert the lark grammar into a `genlm_cfg.CFG` grammar."
+        """Convert the Lark grammar into a genlm_cfg.CFG grammar.
 
+        Returns:
+            CFG: A context-free grammar in genlm_cfg format with renumbered states
+        """
         try:
             rules = [
                 Rule(1, r.lhs.name, tuple(y.name for y in r.rhs)) for r in self.rules
@@ -102,6 +105,20 @@ class LarkStuff:
         return cfg.renumber()
 
     def char_cfg(self, decay=1, delimiter='', charset='core', recursion='right'):
+        """Convert to a character-level CFG with optional ignore patterns.
+
+        Args:
+            decay: Weight decay factor for rules
+            delimiter: Delimiter between tokens (not currently supported)
+            charset: Character set to use ('core' or custom set)
+            recursion: Direction of recursion ('right' or 'left')
+
+        Returns:
+            CFG: A character-level context-free grammar
+
+        Raises:
+            NotImplementedError: If delimiter is non-empty
+        """
         if delimiter != '':
             raise NotImplementedError(f'{delimiter = !r} is not supported.')
 
@@ -154,58 +171,32 @@ class LarkStuff:
 
         assert len(foo.N & foo.V) == 0
 
-        # assert len(foo) == len(foo.trim())
-
-        #        if self.ignore_terms:
-        #            old = self.char_cfg_old(decay=decay, delimiter=delimiter, charset=charset, recursion=recursion)
-        #            print('old -> new:')
-        #            print('  rules:', len(old), '->', len(foo))
-        #            print('  size: ', old.size, '->', foo.size)
-        #            print('  nts:  ', len(old.N), '->', len(foo.N))
-        #            print('n terminal categories:', len(self.terminals))
-
         return foo
 
 
-#    def char_cfg_old(self, decay=1, delimiter='', charset='core', recursion='right'):
-#        if delimiter:
-#            warnings.warn(
-#                'Use of delimiter enforced between terminals. If delimiter is not a strict subset of `%ignore`, generated strings will deviate from original grammar.'
-#            )
-#
-#        ignore_regex = f'(?:{"|".join([t.pattern.to_regexp() for t in self.terminals if t.name in self.ignore_terms])})?'
-#
-#        cfg = self.convert()
-#
-#        # rename all of the internals to avoid naming conflicts.
-#        f = arsenal.Integerizer()
-#
-#        foo = CFG(Float, S=f(cfg.S), V=set())
-#        for r in cfg:
-#            foo.add(r.w * decay, f(r.head), *(f(y) for y in r.body))
-#
-#        for token_class in self.terminals:
-#            if token_class.name in self.ignore_terms:
-#                continue
-#            regex = ignore_regex + token_class.pattern.to_regexp() + delimiter
-#
-#            fsa = interegular_to_wfsa(
-#                regex,
-#                name=lambda x, t=token_class.name: f((t, x)),
-#                charset=charset,
-#            )
-#            G = fsa.to_cfg(S=f(token_class.name), recursion=recursion)
-#
-#            foo.V |= G.V
-#            for r in G:
-#                foo.add(r.w * decay, r.head, *r.body)
-#
-#        assert len(foo.N & foo.V) == 0
-#
-#        return foo
-
-
 def interegular_to_wfsa(pattern, name=lambda x: x, charset='core'):
+    """Convert an interegular regex pattern to a weighted finite state automaton.
+
+    This function takes a regex pattern and converts it to a WFSA with probabilistic 
+    transitions. The transitions are weighted such that the outgoing probability mass
+    from each state sums to 1.
+
+    Args:
+        pattern: The regex pattern string to convert
+        name: Function to transform state names (default: identity function)
+        charset: Character set to use for transitions. Can be 'core' for printable chars,
+                or a custom set of characters.
+
+    Returns:
+        (WFSA): A weighted finite state automaton representing the regex pattern
+
+    Raises:
+        NotImplementedError: If charset is not 'core' or a set
+
+    Note:
+        Multi-character transitions from the regex are excluded with a warning, as they
+        cannot be directly represented in the WFSA format.
+    """
     if charset == 'core':
         charset = set(string.printable)
     elif isinstance(charset, set):

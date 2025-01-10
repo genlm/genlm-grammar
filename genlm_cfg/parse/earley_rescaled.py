@@ -13,7 +13,30 @@ from genlm_cfg.cfglm import EOS, add_EOS, locally_normalize
 
 
 class EarleyLM(LM):
+    """Language model using Earley parsing for context-free grammars.
+
+    Implements a language model using Earley's algorithm for incremental parsing of 
+    context-free grammars. The grammar is automatically converted to prefix form for
+    efficient left-to-right processing.
+
+    Args:
+        cfg (CFG): The context-free grammar to use as the language model
+
+    Attributes:
+        cfg (CFG): The original context-free grammar before prefix transformation
+        model (Earley): The Earley parser for computing probabilities
+    """
+
     def __init__(self, cfg):
+        """Initialize an Earley-based language model.
+
+        Args:
+            cfg (CFG): The context-free grammar to use as the language model. Will be
+                converted to prefix form for incremental parsing.
+
+        Raises:
+            AssertionError: If EOS token not in grammar vocabulary after transformation
+        """
         if EOS not in cfg.V:
             cfg = add_EOS(cfg)
         self.cfg = cfg  # Note: <- cfg before prefix transform & normalization!
@@ -21,14 +44,36 @@ class EarleyLM(LM):
         super().__init__(V=cfg.V, eos=EOS)
 
     def p_next(self, context):
+        """Compute probability distribution over next tokens given a context.
+
+        Args:
+            context: Sequence of tokens representing the prefix
+
+        Returns:
+            Normalized probability distribution over possible next tokens
+
+        Raises:
+            AssertionError: If context contains tokens not in vocabulary
+        """
         assert set(context) <= self.V, f'OOVs detected: {set(context) - self.V}'
         return self.model.next_token_weights(self.model.chart(context)).normalize()
 
     def clear_cache(self):
+        """Clear the parser's chart cache."""
         self.model.clear_cache()
 
     @classmethod
     def from_string(cls, x, semiring=Float, **kwargs):
+        """Create an EarleyLM from a grammar string representation.
+
+        Args:
+            x (str): String representation of the grammar
+            semiring: Semiring to use for weights (default: Float)
+            **kwargs: Additional arguments for grammar normalization
+
+        Returns:
+            EarleyLM: A new language model instance
+        """
         return cls(locally_normalize(CFG.from_string(x, semiring), **kwargs))
 
 

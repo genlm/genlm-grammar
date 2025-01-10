@@ -134,18 +134,17 @@ class CFG:
     """
     Weighted Context-free Grammar
 
-    A weighted context-free grammar consists of:
-    - `R`: A semiring that defines the weights
-    - `S`: A start symbol (nonterminal)
-    - `V`: A set of terminal symbols (vocabulary)
-    - `N`: A set of nonterminal symbols
-    - `rules`: A list of weighted production rules
+    A weighted context-free grammar consists of:\n
+    - `R`: A semiring that defines the weights\n
+    - `S`: A start symbol (nonterminal)\n
+    - `V`: A set of terminal symbols (vocabulary)\n
+    - `N`: A set of nonterminal symbols\n
+    - `rules`: A list of weighted production rules\n
 
-    Each rule has the form: w: X -> Y1 Y2 ... Yn
-    where:
-    - w is a weight from the semiring R
-    - X is a nonterminal symbol
-    - Y1...Yn are terminal or nonterminal symbols
+    Each rule has the form: w: X -> Y1 Y2 ... Yn where:\n
+    - w is a weight from the semiring R\n
+    - X is a nonterminal symbol\n
+    - Y1...Yn are terminal or nonterminal symbols\n
     """
 
     def __init__(self, R, S, V):
