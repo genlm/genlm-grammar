@@ -18,5 +18,6 @@ jobs:
         run: |
                       python -m venv venv
                       source venv/bin/activate
+                      sudo apt-get -y install graphviz
                       pip install -e .[test]
                       pytest tests/
