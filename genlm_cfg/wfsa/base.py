@@ -526,3 +526,35 @@ class WFSA:
                     cfg.add(w, j, i, a)
 
         return cfg
+
+    def to_bytes(self):
+        # Can be optimized, currently creates more states than necessary
+        # when multiple characters emanating from the same state share a byte prefix.
+        byte_wfsa = self.spawn(keep_init=True, keep_stop=True)
+
+        state_counter = 0
+        def get_new_state():
+            nonlocal state_counter
+            state = f"_bytes{state_counter}"
+            state_counter += 1
+            return state
+
+        for (i, a, j, w) in self.arcs():
+            if a == EPSILON:
+                byte_wfsa.add_arc(i, a, j, w)
+            elif isinstance(a, str):
+                bs = a.encode('utf-8')
+                if len(bs) == 1:
+                    byte_wfsa.add_arc(i, bs[0], j, w)
+                else: # Multi-byte transition
+                    curr = get_new_state()
+                    byte_wfsa.add_arc(i, bs[0], curr, self.R.one)
+                    for b in bs[1:-1]:
+                        next_state = get_new_state()
+                        byte_wfsa.add_arc(curr, b, next_state, self.R.one)
+                        curr = next_state
+                    byte_wfsa.add_arc(curr, bs[-1], j, w)
+            else:
+                raise ValueError(f"Invalid arc label {a} for byte conversion")
+
+        return byte_wfsa
