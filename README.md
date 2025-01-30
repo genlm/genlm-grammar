@@ -1,5 +1,5 @@
-[![Docs](https://github.com/probcomp/genlm-cfg/actions/workflows/docs.yml/badge.svg)](https://probcomp.github.io/genlm-cfg/)
-[![Tests](https://github.com/probcomp/genlm-cfg/actions/workflows/pytest.yml/badge.svg)](https://github.com/probcomp/genlm-cfg/actions/workflows/pytest.yml)
+[![Docs](https://github.com/chi-collective/genlm-grammar/actions/workflows/docs.yml/badge.svg)](https://probcomp.github.io/genlm-cfg/)
+[![Tests](https://github.com/chi-collective/genlm-grammar/actions/workflows/pytest.yml/badge.svg)](https://github.com/probcomp/genlm-cfg/actions/workflows/pytest.yml)
 
 # GenLM Grammar
 
@@ -51,7 +51,7 @@ A Python library for working with weighted context-free grammars (WCFGs) and fin
 
 Clone the repository:
 ```bash
-git clone git@github.com:probcomp/genlm-grammar.git
+git clone git@github.com:chi-collective/genlm-grammar.git
 cd genlm_grammar
 ```
 and install with pip:
