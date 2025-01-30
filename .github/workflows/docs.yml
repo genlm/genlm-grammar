@@ -3,9 +3,6 @@ name: Docs
 on:
   push:
     branches:
-      - main  # or your default branch name
-  pull_request:
-    branches:
       - main
 
 permissions:

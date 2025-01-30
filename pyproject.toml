@@ -13,7 +13,7 @@ dependencies = [
     "lark",
     "nltk",
     "numpy",
-    "arsenal @ git+https://github.com/timvieira/arsenal",
+    "arsenal @ git+ssh://github.com/timvieira/arsenal.git",
     "IPython",
     "graphviz",
     "pandas",
