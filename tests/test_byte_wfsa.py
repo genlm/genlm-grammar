@@ -1,6 +1,4 @@
-import pytest
 import string
-import numpy as np
 from genlm_grammar import Float, WFSA
 from genlm_grammar.lark_interface import interegular_to_wfsa
 
@@ -28,7 +26,7 @@ def test_emoji():
     assert wfsa(wave_emoji[:2]) == 0
 
 
-def test_negated_pattern():
+def test_negated_emoji():
     pattern = r"[^👋a]"  # Matches anything except wave emoji or a
     wfsa = interegular_to_wfsa(
         pattern, charset=set(string.printable).union({"👋", "😊"})
@@ -57,8 +55,6 @@ def test_alternation_weights():
 
 def test_byte_conversion_weights():
     # Test that converting to bytes preserves weights for multi-byte characters
-    pattern = "👋|😊|x"
-
     wfsa = WFSA(Float)
     wfsa.add_I("S", 1)
     wfsa.add_F("F", 1)

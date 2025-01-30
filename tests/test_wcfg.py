@@ -47,7 +47,9 @@ def test_misc():
 
     cfg = CFG.from_string("1: X -> Y", Real)
 
-    f = lambda x: x.lower()
+    def f(x):
+        return x.lower()
+
     assert cfg.rename(f).N == {f(X) for X in cfg.N}
 
     try:

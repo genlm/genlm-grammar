@@ -5,7 +5,7 @@ tol = 1e-8
 
 
 def test_1():
-    """The expected lenght of a string in cfg_1 is E[L] =  Σ_{n=0}^{\infty} (n+1)*(0.7^n * 0.3) = 10/3
+    """The expected length of a string in cfg_1 is E[L] =  Σ_{n=0}^{\\infty} (n+1)*(0.7^n * 0.3) = 10/3
     Hint: differentiate the geometric series !"""
 
     cfg_1 = CFG.from_string(
@@ -23,7 +23,7 @@ def test_1():
 
 
 def test_2():
-    """The expected lenght of a string in cfg_2 is E[L] =  Σ_{n=0}^{\infty} 2n*(0.9^n * 0.1) = 18
+    """The expected length of a string in cfg_2 is E[L] =  Σ_{n=0}^{\\infty} 2n*(0.9^n * 0.1) = 18
     Hint: differentiate the geometric series !"""
 
     cfg_2 = CFG.from_string(

@@ -50,15 +50,20 @@ A Python library for working with weighted context-free grammars (WCFGs) and fin
 ### Installation
 
 Clone the repository:
+
 ```bash
 git clone git@github.com:chi-collective/genlm-grammar.git
 cd genlm-grammar
 ```
+
 and install with pip:
+
 ```bash
 pip install .
 ```
+
 This installs the package without development dependencies. For development, install in editable mode with:
+
 ```bash
 pip install -e ".[test,docs]"
 ```
@@ -74,4 +79,18 @@ which also installs the dependencies needed for testing (test) and documentation
 When test dependencies are installed, the test suite can be run via:
 ```bash
 pytest tests
+```
+
+## Documentation
+
+Documentation is generated using [mkdocs](https://www.mkdocs.org/) and hosted on GitHub Pages. To build the documentation, run:
+
+```bash
+mkdocs build
+```
+
+To serve the documentation locally, run:
+
+```bash
+mkdocs serve
 ```

@@ -668,7 +668,9 @@ class CFG:
         Returns:
             A new CFG without unary cycles
         """
-        bot = lambda x: x if x in acyclic else (x, "bot")
+
+        def bot(x):
+            return x if x in acyclic else (x, "bot")
 
         G = self._unary_graph()
 

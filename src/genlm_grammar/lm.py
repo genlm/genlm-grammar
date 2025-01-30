@@ -1,8 +1,5 @@
-import gc
 import numpy as np
 from arsenal.maths import sample_dict
-
-from genlm_grammar.semiring import Float
 
 
 class LM:

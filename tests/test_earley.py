@@ -4,7 +4,7 @@ from arsenal import colors
 import examples
 from genlm_grammar import add_EOS, EOS, CFG
 from genlm_grammar.parse.earley import Earley
-from genlm_grammar.parse.earley import Earley, EarleyLM
+from genlm_grammar.parse.earley import EarleyLM
 from genlm_grammar.parse.cky import CKYLM, IncrementalCKY
 from genlm_grammar.semiring import Float, MaxTimes
 
