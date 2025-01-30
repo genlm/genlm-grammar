@@ -1,7 +1,7 @@
 [![Docs](https://github.com/probcomp/genlm-cfg/actions/workflows/docs.yml/badge.svg)](https://probcomp.github.io/genlm-cfg/)
 [![Tests](https://github.com/probcomp/genlm-cfg/actions/workflows/pytest.yml/badge.svg)](https://github.com/probcomp/genlm-cfg/actions/workflows/pytest.yml)
 
-# GenLM CFG
+# GenLM Grammar
 
 A Python library for working with weighted context-free grammars (WCFGs) and finite state automata (FSA). The library provides efficient implementations for grammar operations, parsing algorithms, and language model functionality.
 
@@ -51,8 +51,8 @@ A Python library for working with weighted context-free grammars (WCFGs) and fin
 
 Clone the repository:
 ```bash
-git clone git@github.com:probcomp/genlm-cfg.git
-cd genlm_cfg
+git clone git@github.com:probcomp/genlm-grammar.git
+cd genlm_grammar
 ```
 and install with pip:
 ```bash
