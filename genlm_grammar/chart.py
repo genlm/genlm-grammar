@@ -1,5 +1,5 @@
 from arsenal import colors
-from genlm_cfg.util import format_table
+from genlm_grammar.util import format_table
 
 
 class Chart(dict):

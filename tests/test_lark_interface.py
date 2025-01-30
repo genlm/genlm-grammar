@@ -3,9 +3,9 @@ import numpy as np
 import string
 from arsenal import colors
 
-from genlm_cfg import EOS
-from genlm_cfg import BoolCFGLM, locally_normalize, EarleyLM, Earley
-from genlm_cfg.lark_interface import LarkStuff
+from genlm_grammar import EOS
+from genlm_grammar import BoolCFGLM, locally_normalize, EarleyLM, Earley
+from genlm_grammar.lark_interface import LarkStuff
 
 
 grammar1 = r"""
@@ -194,7 +194,7 @@ def test_case_insensitive_char_proposal():
 
 
 def test_github_issue_26_():
-    # [2024-07-02 Tue] The original lark -> genlm_cfg.CFG translation of this
+    # [2024-07-02 Tue] The original lark -> genlm_grammar.CFG translation of this
     # grammar had a nonterminal--terminal naming conflict.
     grammar = """
     start: x and x

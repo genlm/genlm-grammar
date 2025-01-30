@@ -1,5 +1,5 @@
-from genlm_cfg.semiring import Semiring
-from genlm_cfg.wfsa.base import WFSA
+from genlm_grammar.semiring import Semiring
+from genlm_grammar.wfsa.base import WFSA
 
 # def test_basics():
 #    from semirings import Symbol

@@ -3,9 +3,9 @@ import numpy as np
 from arsenal import colors
 
 import examples
-from genlm_cfg import CFG, EOS, Float, add_EOS
-from genlm_cfg.parse.cky import CKYLM, IncrementalCKY
-from genlm_cfg.parse.earley_rescaled import Earley, EarleyLM
+from genlm_grammar import CFG, EOS, Float, add_EOS
+from genlm_grammar.parse.cky import CKYLM, IncrementalCKY
+from genlm_grammar.parse.earley_rescaled import Earley, EarleyLM
 
 
 def test_basics():

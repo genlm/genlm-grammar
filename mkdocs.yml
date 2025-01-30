@@ -1,4 +1,4 @@
-site_name: GenLM CFG
+site_name: GenLM Grammar
 theme:
   name: material
   palette:
@@ -39,4 +39,4 @@ markdown_extensions:
   - admonition
   - pymdownx.details
 
-repo_url: https://github.com/probcomp/genlm-cfg
+repo_url: https://github.com/probcomp/genlm-grammar

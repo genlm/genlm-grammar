@@ -27,7 +27,7 @@ docs_requirements = [
 ]
 
 setup(
-    name='genlm-cfg',
+    name='genlm-grammar',
     version='0.0.1',
     description='',
     install_requires=requirements,

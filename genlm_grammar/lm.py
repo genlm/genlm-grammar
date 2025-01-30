@@ -2,7 +2,7 @@ import gc
 import numpy as np
 from arsenal.maths import sample_dict
 
-from genlm_cfg.semiring import Float
+from genlm_grammar.semiring import Float
 
 class LM:
     """Language model base class that defines a probability distribution over strings.

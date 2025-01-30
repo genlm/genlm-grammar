@@ -7,14 +7,14 @@ import arsenal
 import warnings
 from collections import Counter
 
-from genlm_cfg import WFSA, Float
-from genlm_cfg.cfg import CFG, Rule
+from genlm_grammar import WFSA, Float
+from genlm_grammar.cfg import CFG, Rule
 
 
 class LarkStuff:
     """Utility class for leveraging lark as a front-end syntax for specifying grammars.
 
-    This class provides functionality to convert Lark grammars into genlm_cfg format,
+    This class provides functionality to convert Lark grammars into genlm_grammar format,
     handling various features and edge cases in the conversion process.
 
     Attributes:
@@ -83,10 +83,10 @@ class LarkStuff:
         self.ignore_terms = ignores
 
     def convert(self):
-        """Convert the Lark grammar into a genlm_cfg.CFG grammar.
+        """Convert the Lark grammar into a genlm_grammar.CFG grammar.
 
         Returns:
-            CFG: A context-free grammar in genlm_cfg format with renumbered states
+            CFG: A context-free grammar in genlm_grammar format with renumbered states
         """
         try:
             rules = [

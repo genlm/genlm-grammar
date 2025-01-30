@@ -1,6 +1,6 @@
 import re
 import numpy as np
-from genlm_cfg.chart import Chart
+from genlm_grammar.chart import Chart
 
 class Semiring:
     __slots__ = ('score',)

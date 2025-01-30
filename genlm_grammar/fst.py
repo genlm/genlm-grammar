@@ -2,8 +2,8 @@ from collections import defaultdict
 from functools import cached_property
 from itertools import zip_longest
 
-from genlm_cfg.semiring import Boolean
-from genlm_cfg.wfsa import EPSILON, WFSA
+from genlm_grammar.semiring import Boolean
+from genlm_grammar.wfsa import EPSILON, WFSA
 
 ε = EPSILON
 ε_1 = f'{EPSILON}₁'
@@ -199,7 +199,7 @@ class FST(WFSA):
             The composed FST
         """
         if not isinstance(other, FST):
-            from genlm_cfg.cfg import CFG
+            from genlm_grammar.cfg import CFG
 
             if isinstance(other, CFG):
                 return other @ self.T

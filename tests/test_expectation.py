@@ -1,5 +1,5 @@
-from genlm_cfg.cfg import CFG
-from genlm_cfg.semiring import Float
+from genlm_grammar.cfg import CFG
+from genlm_grammar.semiring import Float
 
 tol = 1e-8
 

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from arsenal import colors
 
-from genlm_cfg.wfsa.field_wfsa import WFSA
+from genlm_grammar.wfsa.field_wfsa import WFSA
 
 
 def test_misc():

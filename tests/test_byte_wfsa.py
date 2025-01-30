@@ -1,8 +1,8 @@
 import pytest
 import string
 import numpy as np
-from genlm_cfg import Float, WFSA
-from genlm_cfg.lark_interface import interegular_to_wfsa
+from genlm_grammar import Float, WFSA
+from genlm_grammar.lark_interface import interegular_to_wfsa
 
 def test_negated_pattern():
     wfsa = interegular_to_wfsa(r"[^abc]").to_bytes()

@@ -1,7 +1,7 @@
 from arsenal.maths import compare
 
-from genlm_cfg.linear import WeightedGraph
-from genlm_cfg.semiring import Float
+from genlm_grammar.linear import WeightedGraph
+from genlm_grammar.semiring import Float
 
 
 def test_closure():

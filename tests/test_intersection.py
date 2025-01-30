@@ -1,9 +1,9 @@
 from itertools import product
 
-from genlm_cfg.cfg import CFG, Other
-from genlm_cfg.fst import FST
-from genlm_cfg.semiring import Float, Real
-from genlm_cfg.wfsa import EPSILON, WFSA
+from genlm_grammar.cfg import CFG, Other
+from genlm_grammar.fst import FST
+from genlm_grammar.semiring import Float, Real
+from genlm_grammar.wfsa import EPSILON, WFSA
 
 
 def assert_equal(have, want, tol=1e-5):

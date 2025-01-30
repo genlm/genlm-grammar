@@ -1,10 +1,10 @@
 import numpy as np
 from arsenal import colors
 
-from genlm_cfg.cfg import CFG, Derivation
-from genlm_cfg.chart import Chart
-from genlm_cfg.semiring import Boolean, Entropy, Float, Log, MaxPlus, MaxTimes, Real
-from genlm_cfg.util import display_table
+from genlm_grammar.cfg import CFG, Derivation
+from genlm_grammar.chart import Chart
+from genlm_grammar.semiring import Boolean, Entropy, Float, Log, MaxPlus, MaxTimes, Real
+from genlm_grammar.util import display_table
 
 TOL = 1e-5
 
