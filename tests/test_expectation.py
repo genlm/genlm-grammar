@@ -55,7 +55,7 @@ def test_finite():
     assert abs(want - have) < tol
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from arsenal import testing_framework
 
     testing_framework(globals())

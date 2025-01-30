@@ -9,7 +9,7 @@ from graphviz import Digraph
 from genlm_grammar.linear import WeightedGraph
 
 # EPSILON = "ε"
-EPSILON = ''
+EPSILON = ""
 
 
 class WFSA:
@@ -26,17 +26,17 @@ class WFSA:
         self.stop = R.chart()
 
     def __repr__(self):
-        return f'{__class__.__name__}({self.dim} states)'
+        return f"{__class__.__name__}({self.dim} states)"
 
     def __str__(self):
         output = []
-        output.append('{')
+        output.append("{")
         for p in self.states:
-            output.append(f'  {p} \t\t({self.start[p]}, {self.stop[p]})')
+            output.append(f"  {p} \t\t({self.start[p]}, {self.stop[p]})")
             for a, q, w in self.arcs(p):
-                output.append(f'    {a}: {q}\t[{w}]')
-        output.append('}')
-        return '\n'.join(output)
+                output.append(f"    {a}: {q}\t[{w}]")
+        output.append("}")
+        return "\n".join(output)
 
     @property
     def dim(self):
@@ -259,7 +259,7 @@ class WFSA:
     def graphviz(
         self,
         fmt=str,
-        fmt_node=lambda x: ' ',
+        fmt_node=lambda x: " ",
         fmt_edge=lambda i,
         a,
         j,
@@ -268,38 +268,38 @@ class WFSA:
         if len(self.states) == 0:
             import warnings
 
-            warnings.warn('empty visualization')
+            warnings.warn("empty visualization")
         g = Digraph(
-            graph_attr=dict(rankdir='LR'),
+            graph_attr=dict(rankdir="LR"),
             node_attr=dict(
-                fontname='Monospace',
-                fontsize='10',
-                height='.05',
-                width='.05',
+                fontname="Monospace",
+                fontsize="10",
+                height=".05",
+                width=".05",
                 # margin="0.055,0.042"
-                margin='0,0',
+                margin="0,0",
             ),
             edge_attr=dict(
                 # arrowhead='vee',
-                arrowsize='0.3',
-                fontname='Monospace',
-                fontsize='9',
+                arrowsize="0.3",
+                fontname="Monospace",
+                fontsize="9",
             ),
         )
         f = Integerizer()
         for i, w in self.I:
-            start = f'<start_{i}>'
-            g.node(start, label='', shape='point', height='0', width='0')
-            g.edge(start, str(f(i)), label=f'{fmt(w)}')
+            start = f"<start_{i}>"
+            g.node(start, label="", shape="point", height="0", width="0")
+            g.edge(start, str(f(i)), label=f"{fmt(w)}")
         for i in self.states:
-            g.node(str(f(i)), label=str(fmt_node(i)), shape='circle')
+            g.node(str(f(i)), label=str(fmt_node(i)), shape="circle")
         for i, w in self.F:
-            stop = f'<stop_{i}>'
-            g.node(stop, label='', shape='point', height='0', width='0')
-            g.edge(str(f(i)), stop, label=f'{fmt(w)}')
+            stop = f"<stop_{i}>"
+            g.node(stop, label="", shape="point", height="0", width="0")
+            g.edge(str(f(i)), stop, label=f"{fmt(w)}")
         # for i, a, j, w in sorted(self.arcs()):
         for i, a, j, w in self.arcs():
-            g.edge(str(f(i)), str(f(j)), label=f'{fmt_edge(i,a,j,w)}')
+            g.edge(str(f(i)), str(f(j)), label=f"{fmt_edge(i,a,j,w)}")
         return g
 
     @classmethod
@@ -477,7 +477,7 @@ class WFSA:
 
         return D
 
-    def to_cfg(self, S=None, recursion='right'):
+    def to_cfg(self, S=None, recursion="right"):
         """
         Convert the WFSA to a WCFG with the same weighted language.
 
@@ -491,7 +491,7 @@ class WFSA:
             S = _gen_nt()
         cfg = CFG(R=self.R, V=self.alphabet - {EPSILON}, S=S)
 
-        if recursion == 'right':
+        if recursion == "right":
             # add production rule for initial states
             for i, w in self.I:
                 cfg.add(w, S, i)
@@ -508,7 +508,7 @@ class WFSA:
                     cfg.add(w, i, a, j)
 
         else:
-            assert recursion == 'left'
+            assert recursion == "left"
 
             # add production rule for final states
             for i, w in self.F:
@@ -533,20 +533,21 @@ class WFSA:
         byte_wfsa = self.spawn(keep_init=True, keep_stop=True)
 
         state_counter = 0
+
         def get_new_state():
             nonlocal state_counter
             state = f"_bytes{state_counter}"
             state_counter += 1
             return state
 
-        for (i, a, j, w) in self.arcs():
+        for i, a, j, w in self.arcs():
             if a == EPSILON:
                 byte_wfsa.add_arc(i, a, j, w)
             elif isinstance(a, str):
-                bs = a.encode('utf-8')
+                bs = a.encode("utf-8")
                 if len(bs) == 1:
                     byte_wfsa.add_arc(i, bs[0], j, w)
-                else: # Multi-byte transition
+                else:  # Multi-byte transition
                     curr = get_new_state()
                     byte_wfsa.add_arc(i, bs[0], curr, self.R.one)
                     for b in bs[1:-1]:

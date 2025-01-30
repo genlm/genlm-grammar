@@ -12,40 +12,44 @@ from genlm_grammar.wfsa import EPSILON
 from genlm_grammar.linear import WeightedGraph
 from genlm_grammar.semiring import Boolean, Expectation, Float
 
-def _gen_nt(prefix=''):
+
+def _gen_nt(prefix=""):
     """Generate a novel nonterminal symbol name.
-    
+
     Args:
         prefix (str): Optional prefix for the generated symbol name. Defaults to ''.
-        
+
     Returns:
         str: A unique nonterminal symbol name with format '{prefix}@{counter}'
     """
     _gen_nt.i += 1
-    return f'{prefix}@{_gen_nt.i}'
+    return f"{prefix}@{_gen_nt.i}"
+
 
 _gen_nt.i = 0
 
-Other = namedtuple('Other', 'x')
+Other = namedtuple("Other", "x")
 
-NotNull = namedtuple('NotNull', 'x')
+NotNull = namedtuple("NotNull", "x")
 
-Slash = namedtuple('Slash', 'Y, Z, i')
+Slash = namedtuple("Slash", "Y, Z, i")
+
 
 class Rule:
     """A weighted production rule in a context-free grammar.
-    
+
     Attributes:
         w: Weight of the rule
         head: Left-hand side nonterminal symbol
         body: Right-hand side sequence of symbols
     """
+
     def __init__(self, w, head, body):
         """Initialize a Rule.
-        
+
         Args:
             w: Weight of the rule
-            head: Left-hand side nonterminal symbol  
+            head: Left-hand side nonterminal symbol
             body: Right-hand side sequence of symbols
         """
         self.w = w
@@ -71,15 +75,16 @@ class Rule:
 
 class Derivation:
     """A derivation tree in a context-free grammar.
-    
+
     Attributes:
         r (Rule): The rule used at this node, or None
         x: The symbol at this node
         ys: Child nodes of the derivation
     """
+
     def __init__(self, r, x, *ys):
         """Initialize a Derivation.
-        
+
         Args:
             r (Rule): The rule used at this node, or None
             x: The symbol at this node
@@ -97,14 +102,14 @@ class Derivation:
         return (self.r, self.x, self.ys) == (other.r, other.x, other.ys)
 
     def __repr__(self):
-        open_p = colors.dark.white % '('
-        close_p = colors.dark.white % ')'
-        children = ' '.join(str(y) for y in self.ys)
-        return f'{open_p}{self.x} {children}{close_p}'
+        open_p = colors.dark.white % "("
+        close_p = colors.dark.white % ")"
+        children = " ".join(str(y) for y in self.ys)
+        return f"{open_p}{self.x} {children}{close_p}"
 
     def weight(self):
         """Compute the weight of this derivation.
-        
+
         Returns:
             The weight of this derivation, computed by multiplying the rule weight
             with the weights of all child derivations.
@@ -117,7 +122,7 @@ class Derivation:
 
     def Yield(self):
         """Return the yield (terminal string) of this derivation.
-        
+
         Returns:
             tuple: The sequence of terminal symbols at the leaves of this derivation tree.
         """
@@ -165,7 +170,7 @@ class CFG:
 
     def __repr__(self):
         """Return string representation of the grammar."""
-        return 'Grammar {\n%s\n}' % '\n'.join(f'  {r}' for r in self)
+        return "Grammar {\n%s\n}" % "\n".join(f"  {r}" for r in self)
 
     def _repr_html_(self):
         """Return HTML representation of the grammar for Jupyter notebooks."""
@@ -176,8 +181,8 @@ class CFG:
         cls,
         string,
         semiring,
-        comment='#',
-        start='S',
+        comment="#",
+        start="S",
         is_terminal=lambda x: not x[0].isupper(),
     ):
         """
@@ -195,13 +200,13 @@ class CFG:
         """
         V = set()
         cfg = cls(R=semiring, S=start, V=V)
-        string = string.replace('->', '→')  # synonym for the arrow
-        for line in string.split('\n'):
+        string = string.replace("->", "→")  # synonym for the arrow
+        for line in string.split("\n"):
             line = line.strip()
             if not line or line.startswith(comment):
                 continue
             try:
-                [(w, lhs, rhs)] = re.findall(r'(.*):\s*(\S+)\s*→\s*(.*)$', line)
+                [(w, lhs, rhs)] = re.findall(r"(.*):\s*(\S+)\s*→\s*(.*)$", line)
                 lhs = lhs.strip()
                 rhs = rhs.strip().split()
                 for x in rhs:
@@ -209,7 +214,7 @@ class CFG:
                         V.add(x)
                 cfg.add(semiring.from_string(w), lhs, *rhs)
             except ValueError:
-                raise ValueError(f'bad input line:\n{line}')  # pylint: disable=W0707
+                raise ValueError(f"bad input line:\n{line}")  # pylint: disable=W0707
         return cfg
 
     def __getitem__(self, root):
@@ -337,7 +342,7 @@ class CFG:
         """
         assert (
             self.R == Float
-        ), 'This method only supports grammars over the Float semiring'
+        ), "This method only supports grammars over the Float semiring"
         new_cfg = self.__class__(R=Expectation, S=self.S, V=self.V)
         for r in self:
             new_cfg.add(
@@ -458,7 +463,7 @@ class CFG:
                 )
         assert not throw or Counter(self.rules) == Counter(
             other.rules
-        ), f'\n\nhave=\n{str(self)}\nwant=\n{str(other)}'
+        ), f"\n\nhave=\n{str(self)}\nwant=\n{str(other)}"
 
     def treesum(self, **kwargs):
         """
@@ -663,7 +668,7 @@ class CFG:
         Returns:
             A new CFG without unary cycles
         """
-        bot = lambda x: x if x in acyclic else (x, 'bot')
+        bot = lambda x: x if x in acyclic else (x, "bot")
 
         G = self._unary_graph()
 
@@ -906,7 +911,7 @@ class CFG:
             .unaryremove()
             .trim()
         )
-        assert new.in_cnf(), '\n'.join(
+        assert new.in_cnf(), "\n".join(
             str(r) for r in new._find_invalid_cnf_rule()
         )  # pragma: no cover
         return new
@@ -1056,7 +1061,7 @@ class CFG:
                 b -= 1
                 iteration = 0  # reset iteration number for the next bucket
                 continue
-            
+
             u, v = change[b].popitem()
 
             new = old[u] + v
@@ -1306,11 +1311,11 @@ class CFG:
 
     def to_bytes(self):
         """Convert terminal symbols from strings to bytes representation.
-    
-        This method creates a new grammar where all terminal string symbols are 
-        converted to their UTF-8 byte representation. Non-terminal symbols are 
+
+        This method creates a new grammar where all terminal string symbols are
+        converted to their UTF-8 byte representation. Non-terminal symbols are
         preserved as-is.
-        
+
         Returns:
             CFG: A new grammar with byte terminal symbols
 
@@ -1324,16 +1329,17 @@ class CFG:
             for x in r.body:
                 if self.is_terminal(x):
                     if not isinstance(x, str):
-                        raise ValueError(f'unsupported terminal type: {type(x)}')
-                    bs = list(x.encode('utf-8'))
+                        raise ValueError(f"unsupported terminal type: {type(x)}")
+                    bs = list(x.encode("utf-8"))
                     for b in bs:
                         new.V.add(b)
                     new_body.extend(bs)
                 else:
                     new_body.append(x)
             new.add(r.w, r.head, *new_body)
-        
+
         return new
+
 
 def prefix_transducer(R, V):
     "Construct the prefix transducer over semiring `R` and alphabet `V`."

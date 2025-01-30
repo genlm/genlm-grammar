@@ -6,14 +6,14 @@ from genlm_grammar.semiring import Boolean
 from genlm_grammar.wfsa import EPSILON, WFSA
 
 ε = EPSILON
-ε_1 = f'{EPSILON}₁'
-ε_2 = f'{EPSILON}₂'
+ε_1 = f"{EPSILON}₁"
+ε_2 = f"{EPSILON}₂"
 
 
 class FST(WFSA):
     """A weighted finite-state transducer that maps between two alphabets.
-    
-    A finite-state transducer (FST) extends a weighted finite-state automaton (WFSA) 
+
+    A finite-state transducer (FST) extends a weighted finite-state automaton (WFSA)
     by having two alphabets - an input alphabet A and an output alphabet B. Each transition
     is labeled with a pair (a,b) where a is from A and b is from B.
 
@@ -22,7 +22,7 @@ class FST(WFSA):
 
     def __init__(self, R):
         """Initialize an empty FST.
-        
+
         Args:
             R: The semiring for transition weights
         """
@@ -30,15 +30,15 @@ class FST(WFSA):
 
         # alphabets
         self.A = set()  # input alphabet
-        self.B = set()  # output alphabet 
+        self.B = set()  # output alphabet
 
     def add_arc(self, i, ab, j, w):  # pylint: disable=arguments-renamed
         """Add a weighted transition between states.
-        
+
         Args:
             i: Source state
             ab: Tuple (a,b) of input/output symbols, or EPSILON
-            j: Target state  
+            j: Target state
             w: Weight of the transition
 
         Returns:
@@ -52,7 +52,7 @@ class FST(WFSA):
 
     def set_arc(self, i, ab, j, w):  # pylint: disable=arguments-renamed
         """Set the weight of a transition between states.
-        
+
         Args:
             i: Source state
             ab: Tuple (a,b) of input/output symbols, or EPSILON
@@ -70,7 +70,7 @@ class FST(WFSA):
 
     def __call__(self, x, y):
         """Compute the weight of mapping input x to output y.
-        
+
         If x or y is None, returns a weighted language representing the cross section.
 
         Args:
@@ -99,7 +99,7 @@ class FST(WFSA):
     @classmethod
     def from_string(cls, xs, R, w=None):
         """Create an FST that accepts only the given string with optional weight.
-        
+
         Args:
             xs: Input string
             R: Semiring for weights
@@ -113,7 +113,7 @@ class FST(WFSA):
     @staticmethod
     def from_pairs(pairs, R):
         """Create an FST accepting the given input-output string pairs.
-        
+
         Args:
             pairs: List of (input_string, output_string) tuples
             R: Semiring for weights
@@ -133,7 +133,7 @@ class FST(WFSA):
 
     def project(self, axis):
         """Project the FST onto one of its components to create a WFSA.
-        
+
         Args:
             axis: 0 for input projection, 1 for output projection
 
@@ -156,7 +156,7 @@ class FST(WFSA):
     @cached_property
     def T(self):
         """Return the transpose of this FST by swapping input/output labels.
-        
+
         Returns:
             A new FST with input/output labels swapped
         """
@@ -171,7 +171,7 @@ class FST(WFSA):
 
     def prune_to_alphabet(self, A, B):
         """Remove transitions with labels not in the given alphabets.
-        
+
         Args:
             A: Set of allowed input symbols, or None to allow all
             B: Set of allowed output symbols, or None to allow all
@@ -191,7 +191,7 @@ class FST(WFSA):
 
     def __matmul__(self, other):
         """Compose this FST with another FST or automaton.
-        
+
         Args:
             other: Another FST, CFG or automaton to compose with
 
@@ -231,7 +231,7 @@ class FST(WFSA):
 
     def _compose(self, other, coarsen=True):
         """Internal composition implementation with optional coarsening.
-        
+
         Args:
             other: FST to compose with
             coarsen: Whether to apply pruning/coarsening
@@ -244,13 +244,16 @@ class FST(WFSA):
             result = self._pruned_compose(other, keep, keep.keep_arc)
 
         else:
-            result = self._pruned_compose(other, lambda x: True, lambda i, label, j: True)
+            result = self._pruned_compose(
+                other, lambda x: True, lambda i, label, j: True
+            )
 
         return result
+
     # TODO: add assertions for the 'bad' epsilon cases to ensure users aren't using this method incorrectly.
     def _pruned_compose(self, other, keep, keep_arc):
         """Implements pruned on-the-fly composition of FSTs.
-        
+
         Args:
             other: FST to compose with
             keep: Function that determines which states to keep
@@ -311,7 +314,7 @@ class FST(WFSA):
         return C
 
     def _augment_epsilon_transitions(self, idx):
-        """ Augments the FST by changing the appropriate epsilon transitions to
+        """Augments the FST by changing the appropriate epsilon transitions to
         epsilon_1 or epsilon_2 transitions to be able to perform the composition
         correctly.  See Fig. 7 on p. 17 of Mohri, "Weighted Automata Algorithms".
 
@@ -342,7 +345,7 @@ class FST(WFSA):
     @classmethod
     def diag(cls, fsa):
         """Convert FSA to diagonal FST that maps strings to themselves.
-        
+
         Args:
             fsa: Input FSA to convert
 
@@ -360,7 +363,7 @@ class FST(WFSA):
 
     def coarsen(self, N, A, B):
         """Create coarsened Boolean FST by mapping states and symbols.
-        
+
         Args:
             N: Function mapping states to coarsened states
             A: Function mapping input symbols to coarsened input symbols
@@ -381,7 +384,7 @@ class FST(WFSA):
 
 def epsilon_filter_fst(R, Sigma):
     """Create epsilon filter FST for composition.
-    
+
     Creates a 3-state FST that handles epsilon transitions correctly during
     composition by filtering invalid epsilon paths.
 

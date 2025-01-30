@@ -11,7 +11,7 @@ def assert_equal(have, want, tol=1e-5):
         error = abs(have - want)
     else:
         error = have.metric(want)
-    assert error <= tol, f'have = {have}, want = {want}, error = {error}'
+    assert error <= tol, f"have = {have}, want = {want}, error = {error}"
 
 
 # reference implementation of the intersection algorithm
@@ -91,17 +91,17 @@ def check_fst(cfg, fst):
         have = have.trim().trim()
 
     print()
-    print('have=')
+    print("have=")
     print(have)
     print()
-    print('want=')
+    print("want=")
     print(want)
 
     print()
-    print('have chart=')
+    print("have chart=")
     print(have.agenda())
     print()
-    print('want chart=')
+    print("want chart=")
     print(want.agenda())
 
     assert_equal(have.treesum(), want.treesum())
@@ -123,7 +123,7 @@ def test_palindrome1():
         Float,
     )
 
-    fsa = WFSA.from_string('aa', cfg.R)
+    fsa = WFSA.from_string("aa", cfg.R)
 
     check(cfg, fsa)
 
@@ -139,9 +139,9 @@ def test_palindrome2():
     )
 
     fsa = WFSA(Real)
-    fsa.add_arc(0, 'a', 0, Real.one)
-    fsa.add_arc(0, 'b', 0, Real.one)
-    fsa.add_arc(0, 'c', 0, Real.one)
+    fsa.add_arc(0, "a", 0, Real.one)
+    fsa.add_arc(0, "b", 0, Real.one)
+    fsa.add_arc(0, "c", 0, Real.one)
 
     fsa.add_I(0, Real.one)
     fsa.add_F(0, Real.one)
@@ -161,12 +161,12 @@ def test_palindrome3():
 
     fsa = WFSA(Real)
     # straight line aaa
-    fsa.add_arc(0, 'a', 1, Real.one)
-    fsa.add_arc(1, 'a', 2, Real.one)
-    fsa.add_arc(2, 'a', 3, Real.one)
+    fsa.add_arc(0, "a", 1, Real.one)
+    fsa.add_arc(1, "a", 2, Real.one)
+    fsa.add_arc(2, "a", 3, Real.one)
     # and then a cycle
-    fsa.add_arc(3, 'a', 3, Real(0.5))
-    fsa.add_arc(3, 'b', 3, Real(0.5))
+    fsa.add_arc(3, "a", 3, Real(0.5))
+    fsa.add_arc(3, "b", 3, Real(0.5))
 
     fsa.add_I(0, Real.one)
     fsa.add_F(3, Real.one)
@@ -186,7 +186,7 @@ def test_catalan1():
 
     #    fsa = WFSA.from_string('aa', cfg.R)
 
-    check(cfg, 'aa')
+    check(cfg, "aa")
 
 
 def test_catalan2():
@@ -204,12 +204,12 @@ def test_catalan2():
     fsa.add_F(3, Real.one)
 
     # straight line aaa
-    fsa.add_arc(0, 'a', 1, Real.one)
-    fsa.add_arc(1, 'a', 2, Real.one)
-    fsa.add_arc(2, 'a', 3, Real.one)
+    fsa.add_arc(0, "a", 1, Real.one)
+    fsa.add_arc(1, "a", 2, Real.one)
+    fsa.add_arc(2, "a", 3, Real.one)
     # and then a cycle
-    fsa.add_arc(3, 'a', 3, Real(0.5))
-    fsa.add_arc(3, 'b', 3, Real(0.5))
+    fsa.add_arc(3, "a", 3, Real(0.5))
+    fsa.add_arc(3, "b", 3, Real(0.5))
 
     check(cfg, fsa)
 
@@ -222,17 +222,17 @@ def check(cfg, fsa):
     have = have.trim().trim()
 
     print()
-    print('have=')
+    print("have=")
     print(have)
     print()
-    print('want=')
+    print("want=")
     print(want)
 
     print()
-    print('have chart=')
+    print("have chart=")
     print(have.agenda())
     print()
-    print('want chart=')
+    print("want chart=")
     print(want.agenda())
 
     assert_equal(have.treesum(), want.treesum())
@@ -258,11 +258,11 @@ def test_catalan_fst():
     fst = FST(Real)
 
     fst.add_I(0, Real(1.0))
-    fst.add_arc(0, ('a', 'b'), 1, Real(1.0))
-    fst.add_arc(1, ('a', 'b'), 2, Real(1.0))
-    fst.add_arc(2, ('a', EPSILON), 3, Real(1.0))
-    fst.add_arc(3, ('a', 'b'), 3, Real(1.0))
-    fst.add_arc(3, ('b', 'a'), 3, Real(1.0))
+    fst.add_arc(0, ("a", "b"), 1, Real(1.0))
+    fst.add_arc(1, ("a", "b"), 2, Real(1.0))
+    fst.add_arc(2, ("a", EPSILON), 3, Real(1.0))
+    fst.add_arc(3, ("a", "b"), 3, Real(1.0))
+    fst.add_arc(3, ("b", "a"), 3, Real(1.0))
     fst.add_F(3, Real(1.0))
 
     check_fst(cfg, fst)
@@ -281,11 +281,11 @@ def test_palindrome_fst():
     fst = FST(Real)
 
     fst.add_I(0, Real(1.0))
-    fst.add_arc(0, ('a', 'b'), 1, Real(1.0))
-    fst.add_arc(1, ('a', 'b'), 2, Real(1.0))
-    fst.add_arc(2, ('a', 'b'), 3, Real(1.0))
-    fst.add_arc(3, ('a', EPSILON), 3, Real(1.0))
-    fst.add_arc(3, ('b', EPSILON), 3, Real(1.0))
+    fst.add_arc(0, ("a", "b"), 1, Real(1.0))
+    fst.add_arc(1, ("a", "b"), 2, Real(1.0))
+    fst.add_arc(2, ("a", "b"), 3, Real(1.0))
+    fst.add_arc(3, ("a", EPSILON), 3, Real(1.0))
+    fst.add_arc(3, ("b", EPSILON), 3, Real(1.0))
     fst.add_F(3, Real(1.0))
 
     check_fst(cfg, fst)
@@ -307,17 +307,17 @@ def test_epsilon_fst():
     fst = FST(Real)
 
     fst.add_I(0, Real(1.0))
-    fst.add_arc(0, ('a', 'a'), 1, Real(1.0))
-    fst.add_arc(1, (EPSILON, 'a'), 2, Real(1.0))
-    fst.add_arc(2, ('a', 'a'), 3, Real(1.0))
-    fst.add_arc(3, (EPSILON, 'b'), 4, Real(1.0))
+    fst.add_arc(0, ("a", "a"), 1, Real(1.0))
+    fst.add_arc(1, (EPSILON, "a"), 2, Real(1.0))
+    fst.add_arc(2, ("a", "a"), 3, Real(1.0))
+    fst.add_arc(3, (EPSILON, "b"), 4, Real(1.0))
     fst.add_F(4, Real(1.0))
 
     fst_removed = FST(Real)
 
     fst_removed.add_I(0, Real(1.0))
-    fst_removed.add_arc(0, ('a', 'a'), 1, Real(1.0))
-    fst_removed.add_arc(1, ('a', 'a'), 2, Real(1.0))
+    fst_removed.add_arc(0, ("a", "a"), 1, Real(1.0))
+    fst_removed.add_arc(1, ("a", "a"), 2, Real(1.0))
     fst_removed.add_F(2, Real(1.0))
 
     want = compose_naive_epsilon(cfg, fst)
@@ -343,18 +343,18 @@ def test_epsilon_fst_2():
     fst = FST(Real)
 
     fst.add_I(0, Real(1.0))
-    fst.add_arc(0, ('a', 'a'), 1, Real(1.0))
+    fst.add_arc(0, ("a", "a"), 1, Real(1.0))
     fst.add_arc(1, (EPSILON, EPSILON), 1, Real(0.5))
-    fst.add_arc(1, ('a', 'a'), 2, Real(1.0))
+    fst.add_arc(1, ("a", "a"), 2, Real(1.0))
     fst.add_F(2, Real(1.0))
 
     fst_removed = FST(Real)
 
     fst_removed.add_I(0, Real(1.0))
     fst_removed.add_arc(
-        0, ('a', 'a'), 1, Real(2.0)
+        0, ("a", "a"), 1, Real(2.0)
     )  # The weight of the cycle has been pushed here
-    fst_removed.add_arc(1, ('a', 'a'), 2, Real(1.0))
+    fst_removed.add_arc(1, ("a", "a"), 2, Real(1.0))
     fst_removed.add_F(2, Real(1.0))
 
     have = cfg @ fst_removed
@@ -376,21 +376,21 @@ def test_simple_epsilon():
 
     t = FST(Float)
     t.add_I(0, 1)
-    t.add_arc(0, ('a', ''), 1, 1)
-    t.add_arc(1, ('', 'b'), 1, 0.5)
+    t.add_arc(0, ("a", ""), 1, 1)
+    t.add_arc(1, ("", "b"), 1, 0.5)
     t.add_F(1, 1)
 
     gt = g @ t
 
-    assert_equal(gt(''), 1.0)
-    assert_equal(gt('b'), 0.5)
-    assert_equal(gt('bb'), 0.25)
-    assert_equal(gt('bbb'), 0.125)
-    assert_equal(gt('bbbb'), 0.0625)
-    assert_equal(gt('bbbbb'), 0.03125)
+    assert_equal(gt(""), 1.0)
+    assert_equal(gt("b"), 0.5)
+    assert_equal(gt("bb"), 0.25)
+    assert_equal(gt("bbb"), 0.125)
+    assert_equal(gt("bbbb"), 0.0625)
+    assert_equal(gt("bbbbb"), 0.03125)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from arsenal import testing_framework
 
     testing_framework(globals())

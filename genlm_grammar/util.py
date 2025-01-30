@@ -1,30 +1,32 @@
 import html
 from IPython.display import HTML, display
 
+
 def format_table(rows, headings=None):
     def fmt(x):
-        if hasattr(x, '_repr_html_'):
+        if hasattr(x, "_repr_html_"):
             return x._repr_html_()
-        elif hasattr(x, '_repr_svg_'):
+        elif hasattr(x, "_repr_svg_"):
             return x._repr_svg_()
-        elif hasattr(x, '_repr_image_svg_xml'):
+        elif hasattr(x, "_repr_image_svg_xml"):
             return x._repr_image_svg_xml()
         else:
-            return f'<pre>{html.escape(str(x))}</pre>'
+            return f"<pre>{html.escape(str(x))}</pre>"
 
     return (
-        '<table>'
+        "<table>"
         + (
             '<tr style="font-weight: bold;">'
-            + ''.join(f'<td>{x}</td>' for x in headings)
-            + '</tr>'
+            + "".join(f"<td>{x}</td>" for x in headings)
+            + "</tr>"
             if headings
-            else ''
+            else ""
         )
-        + ''.join(
-            '<tr>' + ''.join(f'<td>{fmt(x)}</td>' for x in row) + ' </tr>' for row in rows
+        + "".join(
+            "<tr>" + "".join(f"<td>{fmt(x)}</td>" for x in row) + " </tr>"
+            for row in rows
         )
-        + '</table>'
+        + "</table>"
     )
 
 

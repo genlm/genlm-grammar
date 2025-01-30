@@ -1,4 +1,3 @@
-
 from collections import defaultdict
 
 from genlm_grammar.lm import LM
@@ -52,7 +51,7 @@ class CKYLM(LM):
         Raises:
             AssertionError: If context contains tokens not in vocabulary
         """
-        assert set(context) <= self.V, f'OOVs detected: {set(context) - self.V}'
+        assert set(context) <= self.V, f"OOVs detected: {set(context) - self.V}"
         return self.model.p_next(context).normalize()
 
     @classmethod
@@ -73,13 +72,15 @@ class CKYLM(LM):
         """Clear the parser's chart cache."""
         self.model.clear_cache()
 
+
 class IncrementalCKY:
     """
     An incremental CKY parser implementation for Context-Free Grammars (CFG).
-    
+
     This parser maintains a chart cache for efficient incremental parsing and supports
     weight computations for next-token predictions.
     """
+
     def __init__(self, cfg):
         """
         Initialize an incremental CKY parser.
@@ -109,10 +110,10 @@ class IncrementalCKY:
     def p_next(self, prefix):
         """
         Compute the weights for all possible next tokens given a prefix.
-        
+
         Args:
             prefix: The current sequence of tokens
-            
+
         Returns:
             Dictionary mapping possible next tokens to their weights
         """
@@ -121,10 +122,10 @@ class IncrementalCKY:
     def chart(self, prefix):
         """
         Get the parsing chart for a given prefix, computing it if not cached.
-        
+
         Args:
             prefix: The sequence of tokens to parse
-            
+
         Returns:
             The CKY chart for the prefix
         """
@@ -137,10 +138,10 @@ class IncrementalCKY:
     def _compute_chart(self, prefix):
         """
         Compute the CKY chart for a given prefix.
-        
+
         Args:
             prefix: The sequence of tokens to parse
-            
+
         Returns:
             A new chart for the prefix, either initialized for empty prefix
             or extended from the previous chart
@@ -159,14 +160,14 @@ class IncrementalCKY:
     def next_token_weights(self, chart, prefix):
         """
         Compute the total weight for each possible next token following the prefix.
-        
+
         An O(N²) time algorithm that calculates the total weight of a each next-token
         extension of `prefix`.
-        
+
         Args:
             chart: The current CKY chart
             prefix: The current sequence of tokens
-            
+
         Returns:
             (Chart) Dictionary mapping possible next tokens to their weights # XXX
         """
@@ -206,11 +207,11 @@ class IncrementalCKY:
     def extend_chart(self, chart, prefix):
         """
         An O(N²) time algorithm that extends the parsing chart with the last token of the prefix.
-        
+
         Args:
             chart: The current CKY chart
             prefix: The sequence of tokens including the new token
-            
+
         Returns:
             A new chart column incorporating the last token
         """
