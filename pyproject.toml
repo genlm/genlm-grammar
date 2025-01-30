@@ -1,0 +1,41 @@
+[project]
+name = "genlm-grammar"
+version = "0.0.1"
+description = ""
+authors = [
+    { name = "The GenLM Team" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "frozendict",
+    "interegular",
+    "lark",
+    "nltk",
+    "numpy",
+    "arsenal @ git+https://github.com/timvieira/arsenal",
+    "IPython",
+    "graphviz",
+    "pandas",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-benchmark",
+]
+docs = [
+    "mkdocs",
+    "mkdocstrings[python]",
+    "mkdocs-material",
+    "mkdocs-gen-files",
+    "mkdocs-literate-nav",
+    "mkdocs-section-index",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+lint.ignore = ["E741", "E743"]
