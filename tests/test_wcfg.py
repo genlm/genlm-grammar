@@ -513,6 +513,17 @@ def test_truncate_length():
     assert len(have) == 7 or max_length != 5
 
 
+def test_byte_conversion():
+    cfg = CFG.from_string("""
+    1.0: S -> A B
+    1.0: A -> a
+    2.0: B -> a 👋
+    """, Float)
+    cfg_b = cfg.to_bytes()
+    for x in ['a', 'a👋', '👋']:
+        assert cfg_b(x.encode('utf-8')) == cfg(x), x
+
+
 if __name__ == '__main__':
     from arsenal import testing_framework
 
