@@ -104,17 +104,24 @@ class LarkStuff:
             cfg.add(1 / lhs_count[r.head], r.head, *r.body)
         return cfg.renumber()
 
-    def char_cfg(self, decay=1, delimiter='', charset='core', recursion='right'):
-        """Convert to a character-level CFG with optional ignore patterns.
+    def char_cfg(self, *args, **kwargs):
+        return self._char_cfg(*args, **kwargs, to_bytes=False)
+
+    def byte_cfg(self, *args, **kwargs):
+        return self._char_cfg(*args, **kwargs, to_bytes=True)
+
+    def _char_cfg(self, decay=1, delimiter='', charset='core', recursion='right', to_bytes=False):
+        """Convert to a character- or byte-level CFG with optional ignore patterns.
 
         Args:
             decay: Weight decay factor for rules
             delimiter: Delimiter between tokens (not currently supported)
             charset: Character set to use ('core' or custom set)
             recursion: Direction of recursion ('right' or 'left')
+            to_bytes: Whether to convert to a byte-level CFG
 
         Returns:
-            CFG: A character-level context-free grammar
+            CFG: A character- or byte-level context-free grammar
 
         Raises:
             NotImplementedError: If delimiter is non-empty
@@ -152,6 +159,9 @@ class LarkStuff:
                 charset=charset,
             )
 
+            if to_bytes:
+                fsa = fsa.to_bytes()
+
             if token_class.name in self.ignore_terms or not self.ignore_terms:
                 G = fsa.to_cfg(S=f(token_class.name), recursion=recursion)
 
@@ -174,18 +184,15 @@ class LarkStuff:
         return foo
 
 
-def interegular_to_wfsa(pattern, name=lambda x: x, charset='core'):
+def interegular_to_wfsa(pattern, charset='core', name=lambda x: x):
     """Convert an interegular regex pattern to a weighted finite state automaton.
-
-    This function takes a regex pattern and converts it to a WFSA with probabilistic 
-    transitions. The transitions are weighted such that the outgoing probability mass
-    from each state sums to 1.
 
     Args:
         pattern: The regex pattern string to convert
         name: Function to transform state names (default: identity function)
-        charset: Character set to use for transitions. Can be 'core' for printable chars,
-                or a custom set of characters.
+        charset: Character set to use for negative character classes. Can be 'core' for `string.printable`,
+                or a custom set of characters. This is the set of characters against which negative character
+                classes are matched.
 
     Returns:
         (WFSA): A weighted finite state automaton representing the regex pattern

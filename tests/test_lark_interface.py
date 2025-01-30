@@ -3,6 +3,7 @@ import numpy as np
 import string
 from arsenal import colors
 
+from genlm_cfg import EOS
 from genlm_cfg import BoolCFGLM, locally_normalize, EarleyLM, Earley
 from genlm_cfg.lark_interface import LarkStuff
 
@@ -192,50 +193,6 @@ def test_case_insensitive_char_proposal():
     assert guide.p_next('s').trim().keys() == {'E', 'e'}
 
 
-# def test_case_insensitive_expansion():
-#    assert expand_case_insensitive('AND') == 'AND'
-#    assert expand_case_insensitive('(?i:AND)') == '[aA][nN][dD]'
-#
-#    assert expand_case_insensitive('[aA][nN][dD]') == '[aA][nN][dD]'
-#    assert expand_case_insensitive('(?i:[aA][nN][dD])') == '[aA][nN][dD]'
-#
-#    assert expand_case_insensitive('(?i:AND|OR)') == '[aA][nN][dD]|[oO][rR]'
-#    assert expand_case_insensitive('(?i:[aA][nN][dD]|OR)') == '[aA][nN][dD]|[oO][rR]'
-#    assert expand_case_insensitive('(?i:AND)|(?i:OR)') == '[aA][nN][dD]|[oO][rR]'
-#
-#    assert expand_case_insensitive('(?i:[aA][nN][d)') == '[aA][nN][[dD]'
-#    assert expand_case_insensitive('(?i:[aA][nN][dD)') == '[aA][nN][[dD][dD]'
-#    assert expand_case_insensitive('(?i:[aA][nN][dE])') == '[aA][nN][[dD][eE]]'
-#    assert expand_case_insensitive('(?i:[aA][nN][dDE])') == '[aA][nN][[dD][dD][eE]]'
-#
-#    assert expand_case_insensitive('(?i:(?i:AND))') == '[aA][nN][dD]'
-#    assert expand_case_insensitive('(?i:(?i:(?i:AND)))') == '[aA][nN][dD]'
-#    assert (
-#        expand_case_insensitive('(?i:(?i:(?i:AND)))(?i:(?i:AND))(?i:AND)')
-#        == '[aA][nN][dD][aA][nN][dD][aA][nN][dD]'
-#    )
-#    assert (
-#        expand_case_insensitive('(?i:(?i:(?i:AND)|(?i:OR)))') == '[aA][nN][dD]|[oO][rR]'
-#    )
-#
-#    assert expand_case_insensitive('(?i:(AND|OR))') == '([aA][nN][dD]|[oO][rR])'
-#    assert expand_case_insensitive('(?i:AND|(?i:OR))') == '[aA][nN][dD]|[oO][rR]'
-#
-#    assert (
-#        expand_case_insensitive('(?i:[a-z][A-Z][a-zA-z])') == '[a-zA-Z][a-zA-Z][a-zA-Z]'
-#    )
-#    assert (
-#        expand_case_insensitive('[a-z](?i:a[a-z]z)[a-z]') == '[a-z][aA][a-zA-Z][zZ][a-z]'
-#    )
-#
-#    assert expand_case_insensitive('(?i:\n)') == '\n'
-#    assert expand_case_insensitive('(?i:\\\\n)') == '\\\\[nN]'
-#
-#    sql_example_input = '(?:(?:(?:(?i:RIGHT)|(?i:FULL)|(?i:LEFT))(?:(?:[ \t\x0c\r\n])+(?i:OUTER))?|(?i:INNER)|(?:(?i:RIGHT)|(?i:FULL)|(?i:LEFT))|(?i:(?:(?i:OUTER))?))(?:[ \t\x0c\r\n])+)?(?i:JOIN)[ ]?'
-#    sql_example_output = '(?:(?:(?:[rR][iI][gG][hH][tT]|[fF][uU][lL][lL]|[lL][eE][fF][tT])(?:(?:[ \t\x0c\r\n])+[oO][uU][tT][eE][rR])?|[iI][nN][nN][eE][rR]|(?:[rR][iI][gG][hH][tT]|[fF][uU][lL][lL]|[lL][eE][fF][tT])|(?:[oO][uU][tT][eE][rR])?)(?:[ \t\x0c\r\n])+)?[jJ][oO][iI][nN][ ]?'
-#    assert expand_case_insensitive(sql_example_input) == sql_example_output
-
-
 def test_github_issue_26_():
     # [2024-07-02 Tue] The original lark -> genlm_cfg.CFG translation of this
     # grammar had a nonterminal--terminal naming conflict.
@@ -305,30 +262,6 @@ def test_lark_ignore():
     assert ' ' not in guide.p_next(' SELECT ').keys()
 
 
-# def test_char_cfg_delimiter():
-#    grammar = r"""
-#    start: "SELECT" NAME "FROM" NAME EOS
-#    NAME: /[A-Za-z][A-Za-z]?[A-Za-z]?[A-Za-z]?[A-Za-z]?/
-#    EOS: "</s>"
-#    """
-#
-#    import warnings
-#
-#    with warnings.catch_warnings():
-#        warnings.simplefilter('ignore')
-#        guide = BoolCFGLM(LarkStuff(grammar).char_cfg(delimiter='[ \n]'))
-#
-#    assert guide.p_next('').keys() == {'S'}
-#    assert guide.p_next(' ') == {}
-#    assert guide.p_next('\n') == {}
-#    assert guide.p_next('SELECT').keys() == {' ', '\n'}
-#    assert not any(x in guide.p_next('SELECT ').keys() for x in (' ', '\n'))
-#    assert not any(x in guide.p_next('SELECT\n').keys() for x in (' ', '\n'))
-#    assert guide.p_next('SELECT\n\n') == {}
-#    assert guide.p_next('SELECT x ').keys() == {'F'}
-#    assert guide.p_next('SELECT x FROM').keys() == {' ', '\n'}
-
-
 def test_char_cfg_charset():
     grammar = r'start: /[^a]+/'
     guide = BoolCFGLM(LarkStuff(grammar).char_cfg(charset='core'))
@@ -346,6 +279,56 @@ def test_char_cfg_charset():
     assert have == want, f'\n\nhave=\n{have}\n\nwant=\n{want}'
     print(colors.mark(True), repr(grammar))
 
+def test_byte_cfg_basics():
+    grammar = r'start: "a"'
+    guide = BoolCFGLM(LarkStuff(grammar).byte_cfg())
+    
+    # 'a' is a single byte in UTF-8
+    have = set(guide.p_next(b'').trim().keys())
+    want = {b'a'[0]}
+    assert have == want, [have, want]
+
+
+def test_byte_cfg_multibyte():
+    # Test with a multi-byte UTF-8 character (e.g., '€' is 3 bytes: b'\xe2\x82\xac')
+    grammar = r'start: "€"'
+    guide = BoolCFGLM(LarkStuff(grammar).byte_cfg())
+    
+    # First byte
+    have = set(guide.p_next(b'').trim().keys())
+    want = {b'\xe2'[0]}  # First byte of '€'
+    assert have == want, [have, want]
+    
+    # Second byte
+    have = set(guide.p_next(b'\xe2').trim().keys())
+    want = {b'\x82'[0]}  # Second byte of '€'
+    assert have == want, [have, want]
+    
+    # Third byte
+    have = set(guide.p_next(b'\xe2\x82').trim().keys())
+    want = {b'\xac'[0]}  # Third byte of '€'
+    assert have == want, [have, want]
+
+
+def test_byte_cfg_charset():
+    # Test with a character class that includes both ASCII and multi-byte chars
+    grammar = r'start: /[a€]+/'
+    guide = BoolCFGLM(LarkStuff(grammar).byte_cfg())
+    
+    # Should allow both 'a' (single byte) and '€' (first byte) as first char
+    have = set(guide.p_next(b'').trim().keys())
+    want = {b'a'[0], b'\xe2'[0]}
+    assert have == want, [have, want]
+    
+    # After 'a', should allow both 'a' and '€' again
+    have = set(guide.p_next(b'a').trim().keys())
+    want = {b'a'[0], b'\xe2'[0], EOS}
+    assert have == want, [have, want]
+    
+    # After first byte of '€', should only allow second byte
+    have = set(guide.p_next(b'\xe2').trim().keys())
+    want = {b'\x82'[0]}
+    assert have == want, [have, want]
 
 if __name__ == '__main__':
     from arsenal import testing_framework

@@ -1304,6 +1304,36 @@ class CFG:
         "Return a `Chart` with this grammar's weighted language for strings ≤ `max_length`."
         return self.cnf.language(max_length).filter(lambda x: len(x) <= max_length)
 
+    def to_bytes(self):
+        """Convert terminal symbols from strings to bytes representation.
+    
+        This method creates a new grammar where all terminal string symbols are 
+        converted to their UTF-8 byte representation. Non-terminal symbols are 
+        preserved as-is.
+        
+        Returns:
+            CFG: A new grammar with byte terminal symbols
+
+        Raises:
+            ValueError: If a terminal symbol is not a string
+        """
+        new = self.spawn(S=self.S, R=self.R, V=set())
+
+        for r in self:
+            new_body = []
+            for x in r.body:
+                if self.is_terminal(x):
+                    if not isinstance(x, str):
+                        raise ValueError(f'unsupported terminal type: {type(x)}')
+                    bs = list(x.encode('utf-8'))
+                    for b in bs:
+                        new.V.add(b)
+                    new_body.extend(bs)
+                else:
+                    new_body.append(x)
+            new.add(r.w, r.head, *new_body)
+        
+        return new
 
 def prefix_transducer(R, V):
     "Construct the prefix transducer over semiring `R` and alphabet `V`."
