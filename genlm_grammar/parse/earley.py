@@ -20,7 +20,7 @@ class EarleyLM(LM):
         super().__init__(V=cfg.V, eos=EOS)
 
     def p_next(self, context):
-        assert set(context) <= self.V, f'OOVs detected: {set(context) - self.V}'
+        assert set(context) <= self.V, f"OOVs detected: {set(context) - self.V}"
         return self.model.next_token_weights(self.model.chart(context)).normalize()
 
     def clear_cache(self):
@@ -32,7 +32,7 @@ class EarleyLM(LM):
 
 
 class Column:
-    __slots__ = ('k', 'i_chart', 'c_chart', 'waiting_for', 'Q')
+    __slots__ = ("k", "i_chart", "c_chart", "waiting_for", "Q")
 
     def __init__(self, k):
         self.k = k
@@ -52,19 +52,19 @@ class Earley:
     """
 
     __slots__ = (
-        'cfg',
-        'order',
-        '_chart',
-        'V',
-        'eos',
-        '_initial_column',
-        'R_outgoing',
-        'rhs',
-        'ORDER_MAX',
-        'intern_Ys',
-        'unit_Ys',
-        'first_Ys',
-        'rest_Ys',
+        "cfg",
+        "order",
+        "_chart",
+        "V",
+        "eos",
+        "_initial_column",
+        "R_outgoing",
+        "rhs",
+        "ORDER_MAX",
+        "intern_Ys",
+        "unit_Ys",
+        "first_Ys",
+        "rest_Ys",
     )
 
     def __init__(self, cfg):
@@ -350,14 +350,14 @@ class Earley:
             """
     #[test]
     fn test_earley() {{
-        
+
         let rhs: HashMap<u32, Vec<RHS>> = [
             {}
         ].iter().cloned().collect();
         """.format(
-                ', '.join(
-                    f'({x}, '
-                    + 'vec![{}])'.format(', '.join(f'({float(u)}, {v})' for u, v in y))
+                ", ".join(
+                    f"({x}, "
+                    + "vec![{}])".format(", ".join(f"({float(u)}, {v})" for u, v in y))
                     for x, y in self.rhs.items()
                 )
             )
@@ -368,7 +368,7 @@ class Earley:
         let order: HashMap<u32, u32> = [
             {}
         ].iter().cloned().collect();
-        """.format(', '.join(f'({u}, {v})' for u, v in self.order.items()))
+        """.format(", ".join(f"({u}, {v})" for u, v in self.order.items()))
         )
 
         print(
@@ -377,8 +377,8 @@ class Earley:
             {}
         ].iter().cloned().collect();
         """.format(
-                ', '.join(
-                    '({}, vec![{}])'.format(i, ', '.join(map(str, s)))
+                ", ".join(
+                    "({}, vec![{}])".format(i, ", ".join(map(str, s)))
                     for i, s in self.R_outgoing.items()
                 )
             )
@@ -390,10 +390,10 @@ class Earley:
             {}
         ].iter().cloned().collect();
         """.format(
-                ', '.join(
+                ", ".join(
                     f'Terminal(String::from("{y}"))'
                     if isinstance(y, str)
-                    else f'Nonterminal({y})'
+                    else f"Nonterminal({y})"
                     for y in self.first_Ys
                 )
             )
@@ -404,7 +404,7 @@ class Earley:
         let rest_ys = vec![
             {}
         ];
-        """.format(', '.join(map(str, self.rest_Ys)))
+        """.format(", ".join(map(str, self.rest_Ys)))
         )
 
         print(
@@ -412,7 +412,7 @@ class Earley:
         let unit_ys = vec![
             {}
         ];
-        """.format(', '.join(map(lambda x: str(bool(x)).lower(), self.unit_Ys)))
+        """.format(", ".join(map(lambda x: str(bool(x)).lower(), self.unit_Ys)))
         )
 
         print(
@@ -420,7 +420,7 @@ class Earley:
         let vocab = [
             {}
         ].iter().cloned().collect();
-        """.format(', '.join(f'String::from("{v}")' for v in self.cfg.V))
+        """.format(", ".join(f'String::from("{v}")' for v in self.cfg.V))
         )
 
         print(
@@ -437,18 +437,18 @@ class Earley:
 
         print("""
         let mut earley = Earley::new(
-            rhs, start, order, order_max, outgoing, first_ys, 
+            rhs, start, order, order_max, outgoing, first_ys,
             rest_ys, unit_ys, vocab, empty_weight,
         );
         let chart = earley.p_next(vec![]);
         dbg!(&chart);
-        
+
     }}
         """)
 
 
 class Node:
-    __slots__ = ('value', 'node', 'edges', 'cursor')
+    __slots__ = ("value", "node", "edges", "cursor")
 
     def __init__(self, node, edges, value):
         self.node = node

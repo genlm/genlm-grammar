@@ -4,10 +4,11 @@ from arsenal.maths import sample_dict
 
 from genlm_grammar.semiring import Float
 
+
 class LM:
     """Language model base class that defines a probability distribution over strings.
 
-    A language model p: V* -> [0,1] defines a probability distribution over strings from 
+    A language model p: V* -> [0,1] defines a probability distribution over strings from
     a vocabulary V of tokens. Every language model admits a left-to-right factorization:
 
     p(x_1 x_2 ... x_T) = p(x_1|ε) p(x_2|x_1) ... p(x_T|x_1...x_{T-1}) p(EOS|x_1...x_T)
@@ -169,7 +170,7 @@ class LM:
                 if y == self.eos:
                     print()
                 else:
-                    print(y, end='')
+                    print(y, end="")
             if y == self.eos:
                 return (ys, P) if prob else ys
             ys = join(ys, y)

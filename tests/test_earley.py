@@ -32,7 +32,7 @@ def test_cycles():
         Float,
     )
     earley = Earley(cfg)
-    assert_equal(earley('c'), cfg('c'))
+    assert_equal(earley("c"), cfg("c"))
 
 
 def test_papa():
@@ -40,17 +40,17 @@ def test_papa():
 
     earley = Earley(cfg)
 
-    x = 'papa ate the caviar'.split()
+    x = "papa ate the caviar".split()
     want = cfg(x)
     have = earley(x)
     assert cfg.R.metric(have, want) <= 1e-10
 
-    x = 'papa ate the caviar with the spoon'.split()
+    x = "papa ate the caviar with the spoon".split()
     want = cfg(x)
     have = earley(x)
     assert cfg.R.metric(have, want) <= 1e-10
 
-    x = 'papa ate'.split()
+    x = "papa ate".split()
     want = cfg(x)
     have = earley(x)
     assert cfg.R.metric(have, want) <= 1e-10
@@ -61,17 +61,17 @@ def test_papa_lm():
 
     earley = EarleyLM(cfg)
 
-    x = 'papa ate the caviar'.split()
+    x = "papa ate the caviar".split()
     want = cfg(x)
     have = earley(x + [EOS])
     assert cfg.R.metric(have, want) <= 1e-10
 
-    x = 'papa ate the caviar with the spoon'.split()
+    x = "papa ate the caviar with the spoon".split()
     want = cfg(x)
     have = earley(x + [EOS])
     assert cfg.R.metric(have, want) <= 1e-10
 
-    x = 'papa ate'.split()
+    x = "papa ate".split()
     want = cfg(x)
     have = earley(x + [EOS])
     assert cfg.R.metric(have, want) <= 1e-10
@@ -82,17 +82,17 @@ def test_palindrome():
 
     earley = Earley(cfg)
 
-    x = ''
+    x = ""
     want = cfg(x)
     have = earley(x)
     assert cfg.R.metric(have, want) <= 1e-10
 
-    x = 'aabbaa'
+    x = "aabbaa"
     want = cfg(x)
     have = earley(x)
     assert cfg.R.metric(have, want) <= 1e-10
 
-    x = 'aabba'
+    x = "aabba"
     want = cfg(x)
     have = earley(x)
     assert have == want == 0
@@ -103,22 +103,22 @@ def test_catalan():
 
     earley = Earley(cfg)
 
-    x = ''
+    x = ""
     want = cfg(x)
     have = earley(x)
     assert cfg.R.metric(have, want) <= 1e-10
 
-    x = 'a'
+    x = "a"
     want = cfg(x)
     have = earley(x)
     assert cfg.R.metric(have, want) <= 1e-10
 
-    x = 'aa'
+    x = "aa"
     want = cfg(x)
     have = earley(x)
     assert cfg.R.metric(have, want) <= 1e-10
 
-    x = 'aaaaa'
+    x = "aaaaa"
     want = cfg(x)
     have = earley(x)
     assert cfg.R.metric(have, want) <= 1e-10
@@ -138,22 +138,22 @@ def test_common_rhs():
 
     earley = Earley(cfg)
 
-    x = ''
+    x = ""
     want = cfg(x)
     have = earley(x)
     assert cfg.R.metric(have, want) <= 1e-10, [x, have, want]
 
-    x = 'a'
+    x = "a"
     want = cfg(x)
     have = earley(x)
     assert cfg.R.metric(have, want) <= 1e-10, [x, have, want]
 
-    x = 'aa'
+    x = "aa"
     want = cfg(x)
     have = earley(x)
     assert cfg.R.metric(have, want) <= 1e-10, [x, have, want]
 
-    x = 'aaaaa'
+    x = "aaaaa"
     want = cfg(x)
     have = earley(x)
     assert cfg.R.metric(have, want) <= 1e-10
@@ -198,9 +198,9 @@ def test_parse_unambiguous():
     )
 
     earley = Earley(cfg)
-    assert_equal(earley('ab'), 0.2)
-    assert_equal(earley('aab'), 0.03)
-    assert_equal(earley('aaab'), 0.0045)
+    assert_equal(earley("ab"), 0.2)
+    assert_equal(earley("aab"), 0.03)
+    assert_equal(earley("aaab"), 0.0045)
 
 
 def test_parse_left_recursive():
@@ -215,9 +215,9 @@ def test_parse_left_recursive():
     )
 
     earley = Earley(cfg)
-    assert_equal(earley('ab'), 0.2)
-    assert_equal(earley('abb'), 0.024)
-    assert_equal(earley('abbb'), 0.00288)
+    assert_equal(earley("ab"), 0.2)
+    assert_equal(earley("abb"), 0.024)
+    assert_equal(earley("abbb"), 0.00288)
 
 
 def assert_equal(have, want, tol=1e-10):
@@ -225,7 +225,7 @@ def assert_equal(have, want, tol=1e-10):
         error = Float.metric(have, want)
     else:
         error = have.metric(want)
-    assert error <= tol, f'have = {have}, want = {want}, error = {error}'
+    assert error <= tol, f"have = {have}, want = {want}, error = {error}"
 
 
 def test_parse_unary():
@@ -241,9 +241,9 @@ def test_parse_unary():
     )
 
     earley = Earley(cfg)
-    assert_equal(earley('a'), 0.1)
-    assert_equal(earley('aa'), 0.015)
-    assert_equal(earley('aaa'), 0.00225)
+    assert_equal(earley("a"), 0.1)
+    assert_equal(earley("aa"), 0.015)
+    assert_equal(earley("aaa"), 0.00225)
 
     cfg = CFG.from_string(
         """
@@ -257,8 +257,8 @@ def test_parse_unary():
     )
 
     earley = Earley(cfg)
-    assert_equal(earley('c'), 0.03)
-    assert_equal(earley('cc'), 0.015)
+    assert_equal(earley("c"), 0.03)
+    assert_equal(earley("cc"), 0.015)
 
 
 def test_parse_mixed():
@@ -274,8 +274,8 @@ def test_parse_mixed():
     )
 
     earley = Earley(cfg)
-    assert_equal(earley('ab'), 0.2)
-    assert_equal(earley('abbcd'), 0.03)
+    assert_equal(earley("ab"), 0.2)
+    assert_equal(earley("abbcd"), 0.03)
 
 
 def test_parse_ambiguous_real():
@@ -290,9 +290,9 @@ def test_parse_ambiguous_real():
     )
 
     earley = Earley(cfg)
-    assert_equal(earley('a'), 0.5)
-    assert_equal(earley('a+a'), 0.1)
-    assert_equal(earley('a+a+a'), 0.04)
+    assert_equal(earley("a"), 0.5)
+    assert_equal(earley("a+a"), 0.1)
+    assert_equal(earley("a+a+a"), 0.04)
 
     cfg = CFG.from_string(
         """
@@ -301,13 +301,13 @@ def test_parse_ambiguous_real():
         0.5: A → a
         """,
         Float,
-        start='A',
+        start="A",
     )
 
     earley = Earley(cfg)
-    assert_equal(earley('a'), 0.5)
-    assert_equal(earley('a+a'), 0.1)
-    assert_equal(earley('a+a+a'), 0.04)
+    assert_equal(earley("a"), 0.5)
+    assert_equal(earley("a+a"), 0.1)
+    assert_equal(earley("a+a+a"), 0.04)
 
 
 def test_parse_ambiguous_maxtimes():
@@ -322,9 +322,9 @@ def test_parse_ambiguous_maxtimes():
     )
 
     earley = Earley(cfg)
-    assert_equal(earley('a'), MaxTimes(0.5))
-    assert_equal(earley('a+a'), MaxTimes(0.1))
-    assert_equal(earley('a+a+a'), MaxTimes(0.02))
+    assert_equal(earley("a"), MaxTimes(0.5))
+    assert_equal(earley("a+a"), MaxTimes(0.1))
+    assert_equal(earley("a+a+a"), MaxTimes(0.02))
 
 
 def test_p_next_new_abcdx():
@@ -343,7 +343,7 @@ def test_p_next_new_abcdx():
     ckylm = CKYLM(add_EOS(cfg))
     earley = EarleyLM(add_EOS(cfg))
 
-    for prefix in ['', 'a', 'ab', 'abc', 'abcd', 'acbd']:
+    for prefix in ["", "a", "ab", "abc", "abcd", "acbd"]:
         print()
         print(colors.light.blue % prefix)
         want = ckylm.p_next(prefix)
@@ -354,7 +354,7 @@ def test_p_next_new_abcdx():
         print(colors.mark(err <= 1e-5))
         assert err <= 1e-5, err
 
-    prefix = 'acbde'
+    prefix = "acbde"
     print()
     print(colors.light.blue % prefix)
     with pytest.raises(AssertionError):
@@ -372,7 +372,7 @@ def test_p_next_palindrome():
     ckylm = CKYLM(cfg)
     earley = EarleyLM(cfg)
 
-    for prefix in ['', 'a', 'ab']:
+    for prefix in ["", "a", "ab"]:
         print()
         print(colors.light.blue % prefix)
         want = ckylm.p_next(prefix)
@@ -392,10 +392,10 @@ def test_p_next_papa():
 
     for prefix in [
         [],
-        ['papa'],
-        ['papa', 'ate'],
-        ['papa', 'ate', 'the'],
-        ['papa', 'ate', 'the', 'caviar'],
+        ["papa"],
+        ["papa", "ate"],
+        ["papa", "ate", "the"],
+        ["papa", "ate", "the", "caviar"],
     ]:
         prefix = tuple(prefix)
         print()
@@ -436,7 +436,7 @@ def test_mystery():
     cky = IncrementalCKY(cfg.cnf)
     earley = Earley(cfg)
 
-    for prefix in ['abc', 'abcd', '']:
+    for prefix in ["abc", "abcd", ""]:
         print()
         print(colors.light.blue % prefix)
         want = cky.p_next(prefix)
@@ -448,7 +448,7 @@ def test_mystery():
         assert err <= 1e-5, err
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from arsenal import testing_framework
 
     testing_framework(globals())

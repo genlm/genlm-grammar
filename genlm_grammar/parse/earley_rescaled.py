@@ -15,7 +15,7 @@ from genlm_grammar.cfglm import EOS, add_EOS, locally_normalize
 class EarleyLM(LM):
     """Language model using Earley parsing for context-free grammars.
 
-    Implements a language model using Earley's algorithm for incremental parsing of 
+    Implements a language model using Earley's algorithm for incremental parsing of
     context-free grammars. The grammar is automatically converted to prefix form for
     efficient left-to-right processing.
 
@@ -55,7 +55,7 @@ class EarleyLM(LM):
         Raises:
             AssertionError: If context contains tokens not in vocabulary
         """
-        assert set(context) <= self.V, f'OOVs detected: {set(context) - self.V}'
+        assert set(context) <= self.V, f"OOVs detected: {set(context) - self.V}"
         return self.model.next_token_weights(self.model.chart(context)).normalize()
 
     def clear_cache(self):
@@ -80,7 +80,7 @@ class EarleyLM(LM):
 class Column:
     """
     Represents a column in the Earley chart at position k in the input.
-    
+
     Attributes:
         k: Position in the input string
         i_chart: Dictionary of incomplete items
@@ -89,7 +89,8 @@ class Column:
         Q: Priority queue for processing items
         rescale: Rescaling coefficient for numerical stability
     """
-    __slots__ = ('k', 'i_chart', 'c_chart', 'waiting_for', 'Q', 'rescale')
+
+    __slots__ = ("k", "i_chart", "c_chart", "waiting_for", "Q", "rescale")
 
     def __init__(self, k):
         self.k = k
@@ -109,12 +110,12 @@ class Column:
 class Earley:
     """
     Implements a semiring-weighted version of Earley's algorithm with O(N³|G|) time complexity.
-    
+
     This implementation includes rescaling for numerical stability and supports weighted grammars.
-    
+
     Warning:
         Assumes that nullary rules and unary chain cycles have been removed.
-    
+
     Attributes:
         cfg: Context-free grammar (preprocessed)
         order: Topological ordering of grammar symbols
@@ -124,19 +125,19 @@ class Earley:
     """
 
     __slots__ = (
-        'cfg',
-        'order',
-        '_chart',
-        'V',
-        'eos',
-        '_initial_column',
-        'R',
-        'rhs',
-        'ORDER_MAX',
-        'intern_Ys',
-        'unit_Ys',
-        'first_Ys',
-        'rest_Ys',
+        "cfg",
+        "order",
+        "_chart",
+        "V",
+        "eos",
+        "_initial_column",
+        "R",
+        "rhs",
+        "ORDER_MAX",
+        "intern_Ys",
+        "unit_Ys",
+        "first_Ys",
+        "rest_Ys",
     )
 
     def __init__(self, cfg):
@@ -442,7 +443,7 @@ class Earley:
 
 
 class Node:
-    __slots__ = ('value', 'node', 'edges', 'cursor')
+    __slots__ = ("value", "node", "edges", "cursor")
 
     def __init__(self, node, edges, value):
         self.node = node

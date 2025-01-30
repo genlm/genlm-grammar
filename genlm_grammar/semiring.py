@@ -2,8 +2,9 @@ import re
 import numpy as np
 from genlm_grammar.chart import Chart
 
+
 class Semiring:
-    __slots__ = ('score',)
+    __slots__ = ("score",)
 
     def __init__(self, score):
         self.score = score
@@ -33,7 +34,7 @@ class Semiring:
     #        return float(self.score)
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.score})'
+        return f"{self.__class__.__name__}({self.score})"
 
     def __eq__(self, other):
         return isinstance(other, Semiring) and self.score == other.score
@@ -120,15 +121,15 @@ class Boolean(Semiring):
             return Boolean.zero
 
     def __repr__(self):
-        return f'{self.score}'
+        return f"{self.score}"
 
     @classmethod
     def from_string(cls, x):
         x = x.strip()
-        if x in {'True', 'true', '1', '1.0'}:
+        if x in {"True", "true", "1", "1.0"}:
             return Boolean.one
         else:
-            assert x in {'False', 'false', '0', '0.0'}, x
+            assert x in {"False", "false", "0", "0.0"}, x
             return Boolean.zero
 
 
@@ -199,13 +200,15 @@ class Expectation(Semiring):
     @classmethod
     def from_string(cls, x):
         try:
-            y = re.findall(r'<(.*),\s*(.*)>', x)[0]
+            y = re.findall(r"<(.*),\s*(.*)>", x)[0]
             return cls(float(y[0]), float(y[1]))
         except ValueError:
             raise AssertionError("Invalid input format. Expected '<float,float>'")  # pylint: disable=raise-missing-from
 
     def __add__(self, other):
-        return Expectation(self.score[0] + other.score[0], self.score[1] + other.score[1])
+        return Expectation(
+            self.score[0] + other.score[0], self.score[1] + other.score[1]
+        )
 
     def __mul__(self, other):
         return Expectation(
@@ -219,11 +222,11 @@ class Expectation(Semiring):
         return Expectation(ps, ps * r * ps)
 
     def __repr__(self):
-        return f'<{self.score[0]},{self.score[1]}>'
+        return f"<{self.score[0]},{self.score[1]}>"
 
 
-Expectation.zero = Expectation.from_string('<0,0>')
-Expectation.one = Expectation.from_string('<1,0>')
+Expectation.zero = Expectation.from_string("<0,0>")
+Expectation.one = Expectation.from_string("<1,0>")
 
 
 # class F128:
@@ -285,7 +288,7 @@ class Real(Semiring):
         return Real(self.score * other.score)
 
     def __repr__(self):
-        return f'{self.score}'
+        return f"{self.score}"
 
 
 Real.zero = Real(0)

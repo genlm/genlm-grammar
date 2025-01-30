@@ -153,21 +153,21 @@ class WeightedGraph:
 
         g = Digraph(
             node_attr=dict(
-                fontname='Monospace',
-                fontsize='9',
-                height='0',
-                width='0',
-                margin='0.055,0.042',
-                penwidth='0.15',
-                shape='box',
-                style='rounded',
+                fontname="Monospace",
+                fontsize="9",
+                height="0",
+                width="0",
+                margin="0.055,0.042",
+                penwidth="0.15",
+                shape="box",
+                style="rounded",
             ),
             edge_attr=dict(
-                penwidth='0.5',
-                arrowhead='vee',
-                arrowsize='0.5',
-                fontname='Monospace',
-                fontsize='8',
+                penwidth="0.5",
+                arrowhead="vee",
+                arrowsize="0.5",
+                fontname="Monospace",
+                fontsize="8",
             ),
         )
 

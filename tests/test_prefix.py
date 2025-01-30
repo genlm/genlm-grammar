@@ -33,20 +33,20 @@ def test_parsing():
     )
 
     for s in [
-        '',
-        'a',
-        'ab',
-        'abb',
-        'abba',
+        "",
+        "a",
+        "ab",
+        "abb",
+        "abba",
     ]:
-        print(colors.yellow % 'check string:', repr(s))
+        print(colors.yellow % "check string:", repr(s))
         want = cfg(s)
 
-        print('want:', want)
+        print("want:", want)
 
         # assert_equal((cfg @ s).trim().treesum(), want, 1e-5)
 
-        print('nullable derivatives')
+        print("nullable derivatives")
         other = cfg.derivatives(s)[-1].trim().null_weight_start()
         assert_equal(other, want, 1e-5)
 
@@ -61,7 +61,7 @@ def test_palindrome():
         Real,
     )
 
-    s = 'aba'
+    s = "aba"
 
     assert_equal(
         have=prefix_weight_bf(cfg, s, 15), want=Real(0.03599999999726485), tol=1e-3
@@ -72,7 +72,7 @@ def test_palindrome():
         want=Real(0.03599999999726485),
     )
 
-    s = 'ababa'
+    s = "ababa"
     assert_equal(
         have=cfg.derivatives(s)[-1].treesum(),
         want=Real(0.004319999997413523),
@@ -89,35 +89,35 @@ def test_new_palindrome():
         Real,
     )
 
-    s = 'a'
+    s = "a"
     print(repr(s))
     assert_equal(
         have=cfg.prefix_weight(s),
         want=cfg.derivatives(s)[-1].treesum(),
     )
 
-    s = 'aa'
+    s = "aa"
     print(repr(s))
     assert_equal(
         have=cfg.prefix_weight(s),
         want=cfg.derivatives(s)[-1].treesum(),
     )
 
-    s = 'ab'
+    s = "ab"
     print(repr(s))
     assert_equal(
         have=cfg.prefix_weight(s),
         want=cfg.derivatives(s)[-1].treesum(),
     )
 
-    s = 'aaaba'
+    s = "aaaba"
     print(repr(s))
     assert_equal(
         have=cfg.prefix_weight(s),
         want=cfg.derivatives(s)[-1].treesum(),
     )
 
-    s = ''
+    s = ""
     print(repr(s))
     assert_equal(
         have=cfg.prefix_weight(s),
@@ -127,14 +127,14 @@ def test_new_palindrome():
 
 def test_examples():
     for name in [
-        'abcd',
-        'abcde_prefixes',
-        'catalan',
-        'catalan_ab',
-        'palindrome_ab',
-        'papa',
+        "abcd",
+        "abcde_prefixes",
+        "catalan",
+        "catalan_ab",
+        "palindrome_ab",
+        "papa",
     ]:
-        print('running example:', name)
+        print("running example:", name)
         cfg = getattr(examples, name)
 
         for s in product(cfg.V, repeat=3):
@@ -159,17 +159,17 @@ THROW = True
 def assert_equal(have, want, tol=1e-8):
     error = have.metric(want)
     if THROW:
-        assert error <= tol, f'have = {have}, want = {want}, error = {error}'
+        assert error <= tol, f"have = {have}, want = {want}, error = {error}"
     else:
         if error <= tol:
             print(
                 colors.mark(error <= tol),
-                f'have = {have}, want = {want}, error = {error}',
+                f"have = {have}, want = {want}, error = {error}",
             )
         else:
             print(
                 colors.mark(error <= tol),
-                f'have = {have}, want = {want}, error = {error}',
+                f"have = {have}, want = {want}, error = {error}",
             )
 
 
@@ -188,50 +188,50 @@ def test_finite():
         Real,
     )
 
-    s = ''
+    s = ""
     assert_equal(
         want=Real(6),
         have=cfg.derivatives(s)[-1].treesum(),
     )
 
-    s = 'a'
+    s = "a"
     assert_equal(
         want=Real(5),
         have=cfg.derivatives(s)[-1].treesum(),
     )
 
-    s = 'ab'
+    s = "ab"
     assert_equal(
         want=Real(4),
         have=cfg.derivatives(s)[-1].treesum(),
     )
 
-    s = 'abc'
+    s = "abc"
     assert_equal(
         want=Real(3),
         have=cfg.derivatives(s)[-1].treesum(),
     )
 
-    s = 'abcd'
+    s = "abcd"
     assert_equal(
         want=Real(2),
         have=cfg.derivatives(s)[-1].treesum(),
     )
 
-    s = 'abcde'
+    s = "abcde"
     assert_equal(
         want=Real(1),
         have=cfg.derivatives(s)[-1].treesum(),
     )
 
-    s = 'abcdef'
+    s = "abcdef"
     assert_equal(
         want=Real(0),
         have=cfg.derivatives(s)[-1].treesum(),
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from arsenal import testing_framework
 
     testing_framework(globals())

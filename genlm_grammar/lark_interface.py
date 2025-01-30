@@ -42,10 +42,10 @@ class LarkStuff:
     """
 
     __slots__ = (
-        'raw_grammar',
-        'terminals', 
-        'ignore_terms',
-        'rules',
+        "raw_grammar",
+        "terminals",
+        "ignore_terms",
+        "rules",
     )
 
     def __init__(self, grammar, cnf=False):
@@ -65,13 +65,13 @@ class LarkStuff:
         lark_grammar = builder.build()
 
         if not any(
-            rule.value == 'start'
+            rule.value == "start"
             for rule in lark_grammar.rule_defs[0]
             if isinstance(rule, lark.lexer.Token)
         ):
-            raise ValueError('Grammar must define a `start` rule')
+            raise ValueError("Grammar must define a `start` rule")
 
-        terminals, rules, ignores = lark_grammar.compile(['start'], set())
+        terminals, rules, ignores = lark_grammar.compile(["start"], set())
 
         if cnf:
             parser = lark.parsers.cyk.Parser(rules)
@@ -99,7 +99,7 @@ class LarkStuff:
             ]
 
         lhs_count = Counter([r.head for r in rules])
-        cfg = CFG(R=Float, S='start', V={t.name for t in self.terminals})
+        cfg = CFG(R=Float, S="start", V={t.name for t in self.terminals})
         for r in rules:
             cfg.add(1 / lhs_count[r.head], r.head, *r.body)
         return cfg.renumber()
@@ -110,7 +110,9 @@ class LarkStuff:
     def byte_cfg(self, *args, **kwargs):
         return self._char_cfg(*args, **kwargs, to_bytes=True)
 
-    def _char_cfg(self, decay=1, delimiter='', charset='core', recursion='right', to_bytes=False):
+    def _char_cfg(
+        self, decay=1, delimiter="", charset="core", recursion="right", to_bytes=False
+    ):
         """Convert to a character- or byte-level CFG with optional ignore patterns.
 
         Args:
@@ -126,8 +128,8 @@ class LarkStuff:
         Raises:
             NotImplementedError: If delimiter is non-empty
         """
-        if delimiter != '':
-            raise NotImplementedError(f'{delimiter = !r} is not supported.')
+        if delimiter != "":
+            raise NotImplementedError(f"{delimiter = !r} is not supported.")
 
         cfg = self.convert()
 
@@ -141,7 +143,7 @@ class LarkStuff:
 
         if self.ignore_terms:
             # union of ignore patterns
-            IGNORE = '$IGNORE'
+            IGNORE = "$IGNORE"
             assert IGNORE not in cfg.V
             ignore = f(IGNORE)
             foo.add(decay, ignore)
@@ -170,7 +172,7 @@ class LarkStuff:
                     foo.add(r.w * decay, r.head, *r.body)
 
             else:
-                tmp = f(('tmp', token_class.name))
+                tmp = f(("tmp", token_class.name))
                 G = fsa.to_cfg(S=tmp, recursion=recursion)
 
                 foo.V |= G.V
@@ -184,7 +186,7 @@ class LarkStuff:
         return foo
 
 
-def interegular_to_wfsa(pattern, charset='core', name=lambda x: x):
+def interegular_to_wfsa(pattern, charset="core", name=lambda x: x):
     """Convert an interegular regex pattern to a weighted finite state automaton.
 
     Args:
@@ -204,13 +206,13 @@ def interegular_to_wfsa(pattern, charset='core', name=lambda x: x):
         Multi-character transitions from the regex are excluded with a warning, as they
         cannot be directly represented in the WFSA format.
     """
-    if charset == 'core':
+    if charset == "core":
         charset = set(string.printable)
     elif isinstance(charset, set):
         pass
     else:
         # TODO: implement other charsets
-        raise NotImplementedError(f'charset {charset} not implemented')
+        raise NotImplementedError(f"charset {charset} not implemented")
 
     # Compile the regex pattern to an FSM
     fsm = interegular.parse_pattern(pattern).to_fsm()
@@ -238,7 +240,7 @@ def interegular_to_wfsa(pattern, charset='core', name=lambda x: x):
                 for A in expand_alphabet(a):
                     if len(A) != 1:
                         warnings.warn(
-                            f'Excluding multi-character arc {A!r} in pattern {pattern!r} (possibly a result of case insensitivity of arcs {expand_alphabet(a)})'
+                            f"Excluding multi-character arc {A!r} in pattern {pattern!r} (possibly a result of case insensitivity of arcs {expand_alphabet(a)})"
                         )
                     m.add(name(i), A, name(j))
 
@@ -275,7 +277,7 @@ def interegular_to_wfsa(pattern, charset='core', name=lambda x: x):
                     assert isinstance(A, str)
                     if len(A) != 1:
                         warnings.warn(
-                            f'Excluding multi-character arc {A!r} in pattern {pattern!r} (possibly a result of case insensitivity of arcs {expand_alphabet(a)})'
+                            f"Excluding multi-character arc {A!r} in pattern {pattern!r} (possibly a result of case insensitivity of arcs {expand_alphabet(a)})"
                         )
                         continue
                     K += 1

@@ -4,17 +4,17 @@ from genlm_grammar.util import format_table
 
 class Chart(dict):
     """A weighted chart data structure that extends dict with semiring operations.
-    
+
     The Chart class provides methods for semiring operations like addition and multiplication,
     as well as utilities for filtering, comparing, and manipulating weighted values.
-    
+
     Attributes:
         semiring: The semiring that defines the weight operations
     """
 
     def __init__(self, semiring, vals=()):
         """Initialize a Chart.
-        
+
         Args:
             semiring: The semiring for weight operations
             vals: Optional initial values for the chart
@@ -32,10 +32,10 @@ class Chart(dict):
 
     def __add__(self, other):
         """Add two charts element-wise.
-        
+
         Args:
             other: Another Chart to add to this one
-            
+
         Returns:
             A new Chart containing the element-wise sum
         """
@@ -48,10 +48,10 @@ class Chart(dict):
 
     def __mul__(self, other):
         """Multiply two charts element-wise.
-        
+
         Args:
             other: Another Chart to multiply with this one
-            
+
         Returns:
             A new Chart containing the element-wise product
         """
@@ -65,10 +65,10 @@ class Chart(dict):
 
     def product(self, ks):
         """Compute the product of values for the given keys.
-        
+
         Args:
             ks: Sequence of keys to multiply values for
-            
+
         Returns:
             The product of values for the given keys
         """
@@ -89,10 +89,10 @@ class Chart(dict):
 
     def metric(self, other):
         """Compute the maximum distance between this Chart and another.
-        
+
         Args:
             other: Another Chart to compare against
-            
+
         Returns:
             The maximum semiring metric between corresponding values
         """
@@ -106,8 +106,8 @@ class Chart(dict):
         """Return HTML representation for Jupyter notebooks."""
         return (
             '<div style="font-family: Monospace;">'
-            + format_table(self.trim().items(), headings=['key', 'value'])
-            + '</div>'
+            + format_table(self.trim().items(), headings=["key", "value"])
+            + "</div>"
         )
 
     def __repr__(self):
@@ -116,29 +116,30 @@ class Chart(dict):
 
     def __str__(self, style_value=lambda k, v: str(v)):
         """Return formatted string representation.
-        
+
         Args:
             style_value: Optional function to format values
-            
+
         Returns:
             Formatted string showing non-zero entries
         """
+
         def key(k):
             return -self.semiring.metric(self[k], self.semiring.zero)
 
         return (
-            'Chart {\n'
-            + '\n'.join(
-                f'  {k!r}: {style_value(k, self[k])},'
+            "Chart {\n"
+            + "\n".join(
+                f"  {k!r}: {style_value(k, self[k])},"
                 for k in sorted(self, key=key)
                 if self[k] != self.semiring.zero
             )
-            + '\n}'
+            + "\n}"
         )
 
     def assert_equal(self, want, *, domain=None, tol=1e-5, verbose=False, throw=True):
         """Assert that this Chart equals another within tolerance.
-        
+
         Args:
             want: The expected Chart or dict of values
             domain: Optional set of keys to check
@@ -162,7 +163,7 @@ class Chart(dict):
                 errors.append(x)
         if throw:
             for x in errors:
-                raise AssertionError(f'{x}: {self[x]} {want[x]}')
+                raise AssertionError(f"{x}: {self[x]} {want[x]}")
 
     def argmax(self):
         """Return the key with maximum value."""
@@ -174,10 +175,10 @@ class Chart(dict):
 
     def top(self, k):
         """Return a new Chart with the k largest values.
-        
+
         Args:
             k: Number of top values to keep
-            
+
         Returns:
             A new Chart containing only the k largest values
         """
@@ -200,10 +201,10 @@ class Chart(dict):
 
     def sort(self, **kwargs):
         """Return a new Chart with entries sorted by key.
-        
+
         Args:
             **kwargs: Arguments passed to sorted()
-            
+
         Returns:
             A new Chart with sorted entries
         """
@@ -224,10 +225,10 @@ class Chart(dict):
 
     def filter(self, f):
         """Return a new Chart keeping only entries where f(key) is True.
-        
+
         Args:
             f: Predicate function that takes a key and returns bool
-            
+
         Returns:
             A new Chart containing only entries where f(key) is True
         """
@@ -235,10 +236,10 @@ class Chart(dict):
 
     def project(self, f):
         """Apply a function to keys, summing weights when transformed keys overlap.
-        
+
         Args:
             f: Function to transform keys
-            
+
         Returns:
             A new Chart with transformed keys and summed weights
         """
@@ -250,11 +251,11 @@ class Chart(dict):
     # TODO: the more general version of this method is join
     def compare(self, other, *, domain=None):
         """Compare this Chart to another using pandas DataFrame.
-        
+
         Args:
             other: Another Chart or dict to compare against
             domain: Optional set of keys to compare
-            
+
         Returns:
             pandas DataFrame showing key-by-key comparison
         """
