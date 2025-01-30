@@ -33,13 +33,14 @@ def locally_normalize(self, **kwargs):
     return new
 
 
-def add_EOS(cfg):
+def add_EOS(cfg, eos=None):
     """Add an end-of-sequence symbol to a CFG's language.
     
     Transforms the grammar to append the EOS symbol to every string it generates.
     
     Args:
         cfg (CFG): The input grammar
+        eos (optional): The end-of-sequence symbol to add. Defaults to ▪.
         
     Returns:
         (CFG): A new grammar that generates strings ending in EOS
@@ -47,14 +48,13 @@ def add_EOS(cfg):
     Raises:
         AssertionError: If EOS is already in the grammar's vocabulary
 
-    Note:
-        Uses `genlm_cfg`'s default EOS symbol ▪.
     """
     S = _gen_nt('<START>')
     new = cfg.spawn(S=S)
-    assert EOS not in cfg.V
-    new.V.add(EOS)
-    new.add(cfg.R.one, S, cfg.S, EOS)
+    eos = eos or EOS
+    assert eos not in cfg.V
+    new.V.add(eos)
+    new.add(cfg.R.one, S, cfg.S, eos)
     for r in cfg:
         new.add(r.w, r.head, *r.body)
     return new
@@ -86,7 +86,7 @@ class BoolCFGLM(LM):
             ValueError: If alg is not 'earley' or 'cky'
         """
         if EOS not in cfg.V:
-            cfg = add_EOS(cfg)
+            cfg = add_EOS(cfg, eos=EOS)
         if cfg.R != Boolean:
             cfg = cfg.map_values(lambda x: Boolean(x > 0), Boolean)
         if alg == 'earley':
