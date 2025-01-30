@@ -52,7 +52,7 @@ A Python library for working with weighted context-free grammars (WCFGs) and fin
 Clone the repository:
 ```bash
 git clone git@github.com:chi-collective/genlm-grammar.git
-cd genlm_grammar
+cd genlm-grammar
 ```
 and install with pip:
 ```bash
