@@ -1,9 +1,9 @@
-[![Docs](https://github.com/chi-collective/genlm-grammar/actions/workflows/docs.yml/badge.svg)](https://probcomp.github.io/genlm-cfg/)
-[![Tests](https://github.com/chi-collective/genlm-grammar/actions/workflows/pytest.yml/badge.svg)](https://github.com/probcomp/genlm-cfg/actions/workflows/pytest.yml)
+[![Docs](https://github.com/chi-collective/genlm-grammar/actions/workflows/docs.yml/badge.svg)](https://chi-collective.github.io/genlm-grammar/)
+[![Tests](https://github.com/chi-collective/genlm-grammar/actions/workflows/pytest.yml/badge.svg)](https://chi-collective.com/probcomp/genlm-grammar/actions/workflows/pytest.yml)
 
 # GenLM Grammar
 
-A Python library for working with weighted context-free grammars (WCFGs) and finite state automata (FSA). The library provides efficient implementations for grammar operations, parsing algorithms, and language model functionality.
+A Python library for working with weighted context-free grammars (WCFGs), weighted finite state automata (WFSAs) and weighted finite state transducers (WFSTs). The library provides efficient implementations for grammar operations, parsing algorithms, and language model functionality.
 
 ## Key Features
 
