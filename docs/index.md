@@ -66,13 +66,3 @@ lm = BoolCFGLM(cfg, alg='earley')  # or alg='cky'
 # Get next token weights
 probs = lm.p_next(context)
 ```
-
-### Working with FSTs
-```python
-from genlm_grammar.fst import FST
-
-# Create and compose transducers
-fst1 = FST(semiring)
-fst2 = FST(semiring)
-composed = fst1 @ fst2
-```
