@@ -263,7 +263,7 @@ class WFSA:
         fmt_edge=lambda i,
         a,
         j,
-        w: f'{html.escape(str(":".join(str(A or "ε") for A in a)) if isinstance(a, tuple) else str(a))}/{w}',
+        w: f"{html.escape(str(':'.join(str(A or 'ε') for A in a)) if isinstance(a, tuple) else str(a))}/{w}",
     ):
         if len(self.states) == 0:
             import warnings
@@ -299,7 +299,7 @@ class WFSA:
             g.edge(str(f(i)), stop, label=f"{fmt(w)}")
         # for i, a, j, w in sorted(self.arcs()):
         for i, a, j, w in self.arcs():
-            g.edge(str(f(i)), str(f(j)), label=f"{fmt_edge(i,a,j,w)}")
+            g.edge(str(f(i)), str(f(j)), label=f"{fmt_edge(i, a, j, w)}")
         return g
 
     @classmethod

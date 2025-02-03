@@ -70,7 +70,7 @@ class Rule:
         return self._hash
 
     def __repr__(self):
-        return f'{self.w}: {self.head} → {" ".join(map(str, self.body))}'
+        return f"{self.w}: {self.head} → {' '.join(map(str, self.body))}"
 
 
 class Derivation:
@@ -340,9 +340,9 @@ class CFG:
         Raises:
             AssertionError: If grammar is not over the Float semiring
         """
-        assert (
-            self.R == Float
-        ), "This method only supports grammars over the Float semiring"
+        assert self.R == Float, (
+            "This method only supports grammars over the Float semiring"
+        )
         new_cfg = self.__class__(R=Expectation, S=self.S, V=self.V)
         for r in self:
             new_cfg.add(
@@ -461,9 +461,9 @@ class CFG:
                     colors.mark(r in G),
                     r,
                 )
-        assert not throw or Counter(self.rules) == Counter(
-            other.rules
-        ), f"\n\nhave=\n{str(self)}\nwant=\n{str(other)}"
+        assert not throw or Counter(self.rules) == Counter(other.rules), (
+            f"\n\nhave=\n{str(self)}\nwant=\n{str(other)}"
+        )
 
     def treesum(self, **kwargs):
         """

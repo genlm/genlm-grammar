@@ -54,7 +54,7 @@ class WFSA(base.WFSA):
 
     def graphviz(
         self,
-        fmt=lambda x: f"{round(x,3):g}" if isinstance(x, (float, int)) else str(x),
+        fmt=lambda x: f"{round(x, 3):g}" if isinstance(x, (float, int)) else str(x),
         **kwargs,
     ):  # pylint: disable=arguments-differ
         return super().graphviz(fmt=fmt, **kwargs)
