@@ -21,6 +21,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
+    "coverage",
     "pytest",
     "pytest-benchmark",
 ]
