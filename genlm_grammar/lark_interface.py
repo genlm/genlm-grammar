@@ -134,7 +134,10 @@ class LarkStuff:
         cfg = self.convert()
 
         # rename all of the internals to avoid naming conflicts.
-        f = arsenal.Integerizer()
+        _f = arsenal.Integerizer()
+
+        def f(x):
+            return f"N{_f(x)}"
 
         foo = CFG(Float, S=f(cfg.S), V=set())
         for r in cfg:
