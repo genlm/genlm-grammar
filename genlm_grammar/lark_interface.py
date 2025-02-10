@@ -135,7 +135,7 @@ class LarkStuff:
 
         # rename all of the internals to avoid naming conflicts.
         _f = arsenal.Integerizer()
-        
+
         def f(x):
             return f"N{_f(x)}"
 
