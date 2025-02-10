@@ -135,7 +135,9 @@ class LarkStuff:
 
         # rename all of the internals to avoid naming conflicts.
         _f = arsenal.Integerizer()
-        f = lambda x: f"N{_f(x)}"
+        
+        def f(x):
+            return f"N{_f(x)}"
 
         foo = CFG(Float, S=f(cfg.S), V=set())
         for r in cfg:
