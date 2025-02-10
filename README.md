@@ -1,5 +1,6 @@
-[![Docs](https://github.com/chi-collective/genlm-grammar/actions/workflows/docs.yml/badge.svg)](https://chi-collective.github.io/genlm-grammar/)
-[![Tests](https://github.com/chi-collective/genlm-grammar/actions/workflows/pytest.yml/badge.svg)](https://chi-collective.com/probcomp/genlm-grammar/actions/workflows/pytest.yml)
+[![Docs](https://github.com/chisym/genlm-grammar/actions/workflows/docs.yml/badge.svg)](https://chisym.github.io/genlm-grammar/)
+[![Tests](https://github.com/chisym/genlm-grammar/actions/workflows/pytest.yml/badge.svg)](https://chisym.com/chisym/genlm-grammar/actions/workflows/pytest.yml)
+[![codecov](https://codecov.io/github/chisym/genlm-grammar/graph/badge.svg?token=TQBAQ1uA6y)](https://codecov.io/github/chisym/genlm-grammar)
 
 # GenLM Grammar
 
@@ -52,7 +53,7 @@ A Python library for working with weighted context-free grammars (WCFGs), weight
 Clone the repository:
 
 ```bash
-git clone git@github.com:chi-collective/genlm-grammar.git
+git clone git@github.com:chisym/genlm-grammar.git
 cd genlm-grammar
 ```
 
