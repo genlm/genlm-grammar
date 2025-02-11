@@ -528,11 +528,13 @@ def test_byte_conversion():
     for x in ["a", "a👋", "👋"]:
         assert cfg_b(x.encode("utf-8")) == cfg(x), x
 
+
 def test_renumber():
-    cfg = CFG(S='S', R=Float, V={0})
-    cfg.add(1, 'S', 0)
+    cfg = CFG(S="S", R=Float, V={0})
+    cfg.add(1, "S", 0)
     renumbered = cfg.renumber()
     assert renumbered([0]) == 1
+
 
 if __name__ == "__main__":
     from arsenal import testing_framework
