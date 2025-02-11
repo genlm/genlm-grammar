@@ -396,7 +396,7 @@ class CFG:
         Returns:
             A new CFG with integer nonterminals
         """
-        return self.rename(Integerizer())
+        return self.rename(Integerizer(list(self.V)))
 
     def rename(self, f):
         """
