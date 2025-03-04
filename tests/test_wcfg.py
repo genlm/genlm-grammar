@@ -535,6 +535,11 @@ def test_renumber():
     renumbered = cfg.renumber()
     assert renumbered([0]) == 1
 
+    cfg = CFG(S="S", R=Float, V={1})
+    cfg.add(1, "S", 1)
+    renumbered = cfg.renumber()
+    assert renumbered([1]) == 1
+
 
 if __name__ == "__main__":
     from arsenal import testing_framework
