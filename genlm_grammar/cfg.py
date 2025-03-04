@@ -396,7 +396,9 @@ class CFG:
         Returns:
             A new CFG with integer nonterminals
         """
-        return self.rename(Integerizer(list(self.V)))
+        i = Integerizer()
+        max_v = max((x for x in self.V if isinstance(x, int)), default=0)
+        return self.rename(lambda x: i(x) + max_v + 1)
 
     def rename(self, f):
         """
