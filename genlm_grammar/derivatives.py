@@ -57,6 +57,12 @@ class Grammar:
     def __hash__(self):
         return object.__hash__(self)
 
+    def __add__(self, other):
+        return cat(self, other)
+
+    def __or__(self, other):
+        return union(self, other)
+
 
 class Lazy(Grammar):
     __slots__ = ("__thunk",)
@@ -236,6 +242,9 @@ class Chars(Grammar):
 
     def __init__(self, chars: frozenset[int]):
         super().__init__()
+        assert isinstance(chars, frozenset)
+        for c in chars:
+            assert isinstance(c, int)
         self.chars = chars
 
     def __repr__(self):
@@ -244,6 +253,7 @@ class Chars(Grammar):
 
 @cached
 def chars(cs):
+    cs = frozenset(cs)
     match len(cs):
         case 0:
             return null
@@ -253,11 +263,18 @@ def chars(cs):
             return Chars(cs)
 
 
+@cached
+def char(c):
+    return chars(frozenset((c,)))
+
+
 class Cat(Grammar):
     __slots__ = __match_args__ = ("left", "right")
 
     def __init__(self, left: Grammar, right: Grammar):
         super().__init__()
+        assert isinstance(left, Grammar)
+        assert isinstance(right, Grammar)
         self.left = left
         self.right = right
 
@@ -302,11 +319,29 @@ def cat(*args):
             return result
 
 
+@cached
+def literal(s: bytes) -> Grammar:
+    return cat(*[char(c) for c in s])
+
+
+@cached
+def seq(child):
+    result = lazy(lambda: union(epsilon, cat(child, result)))
+    return result
+
+
+@cached
+def optional(child):
+    return union(child, epsilon)
+
+
 class Union(Grammar):
     __slots__ = __match_args__ = ("children",)
 
     def __init__(self, children: frozenset[Grammar]):
         super().__init__()
+        for c in children:
+            assert isinstance(c, Grammar)
         self.children = children
 
     def __repr__(self):
@@ -380,6 +415,8 @@ def delta(grammar: Grammar) -> Grammar:
             return null
         case Union(children):
             return union(*map(delta, children))
+        case Delta():
+            return grammar
         case _:
             return Delta(grammar)
 
@@ -389,8 +426,10 @@ DERIVATIVE_CACHE = {}
 
 @cached
 def derivative(grammar: Grammar, c: int) -> Grammar:
+    assert isinstance(grammar, Grammar)
+    assert isinstance(c, int)
     match grammar:
-        case Epsilon() | Null():
+        case Epsilon() | Null() | Delta():
             return null
         case Chars(cs):
             if c in cs:
@@ -502,7 +541,7 @@ class BookKeeper:
                     if self.could_have_matches(c):
                         return True
                 return False
-            case Delta(child):
+            case Delta():
                 # Because Delta matches something iff it matches empty and we checked
                 # that above.
                 return False
@@ -556,4 +595,5 @@ class BookKeeper:
 def matches(grammar, string):
     for c in string:
         grammar = derivative(grammar, c)
+        print(grammar)
     return grammar.matches_empty

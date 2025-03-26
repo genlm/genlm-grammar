@@ -1,8 +1,8 @@
 from genlm_grammar.derivatives import (
-    null,
     lazy,
     union,
     cat,
+    char,
     chars,
     epsilon,
     matches,
@@ -10,9 +10,17 @@ from genlm_grammar.derivatives import (
     epsilon,
     dot,
     any,
+    literal,
+    seq,
+    optional,
+    derivative,
 )
-from hypothesis import strategies as st, given, assume, settings, Phase
+from hypothesis import strategies as st, given, assume, settings, Phase, example
 from hypothesis.stateful import rule, RuleBasedStateMachine
+from hypothesis.extra.lark import from_lark
+from lark import Lark
+import string
+import pytest
 
 
 settings.register_profile("default", phases=set(settings().phases) - {Phase.explain})
@@ -87,3 +95,142 @@ def test_sequence_matching(s):
     x = union(epsilon, cat(chars(b"01"), lazy(lambda: x)))
 
     assert matches(x, s)
+
+
+JSON_LARK_GRAMMAR = R"""
+?value: dict
+        | list
+        | string
+        | SIGNED_NUMBER      -> number
+        | "true"             -> true
+        | "false"            -> false
+        | "null"             -> null
+
+list : "[" [value ("," value)*] "]"
+
+dict : "{" [pair ("," pair)*] "}"
+pair : string ":" value
+
+string : ESCAPED_STRING
+
+%import common.ESCAPED_STRING
+%import common.SIGNED_NUMBER
+%import common.WS
+%ignore WS
+"""
+
+JSON_STRATEGY = from_lark(Lark(JSON_LARK_GRAMMAR, start="value"))
+
+WHITESPACE = seq(chars(frozenset(string.whitespace.encode("ascii"))))
+
+JSON_VALUE = (
+    WHITESPACE
+    + lazy(
+        lambda: union(
+            JSON_DICT,
+            JSON_LIST,
+            JSON_STRING,
+            SIGNED_NUMBER,
+            literal(b"true"),
+            literal(b"false"),
+            literal(b"null"),
+        )
+    )
+    + WHITESPACE
+)
+
+
+JSON_STRING = cat(
+    literal(b'"'),
+    seq(
+        union(
+            chars(set(range(256)) - set(b'"\\')),
+            cat(literal(b"\\"), dot),
+        )
+    ),
+    literal(b'"'),
+)
+
+
+JSON_LIST = cat(
+    literal(b"["),
+    WHITESPACE,
+    optional(
+        cat(
+            JSON_VALUE,
+            WHITESPACE,
+            seq(
+                cat(
+                    literal(b","),
+                    WHITESPACE,
+                    JSON_VALUE,
+                )
+            ),
+        )
+    ),
+    WHITESPACE,
+    literal(b"]"),
+)
+
+KV_PAIR = cat(
+    JSON_STRING,
+    WHITESPACE,
+    literal(b":"),
+    WHITESPACE,
+    JSON_VALUE,
+)
+
+JSON_DICT = cat(
+    literal(b"{"),
+    WHITESPACE,
+    optional(
+        cat(
+            KV_PAIR,
+            WHITESPACE,
+            seq(
+                cat(
+                    literal(b","),
+                    WHITESPACE,
+                    KV_PAIR,
+                )
+            ),
+        )
+    ),
+    WHITESPACE,
+    literal(b"}"),
+)
+
+DIGIT = chars((b"0123456789"))
+HEXDIGIT = chars((b"0123456789abcdefABCDEF"))
+
+SIGN = optional(chars(b"+-"))
+
+INT = DIGIT + seq(DIGIT)
+SIGNED_INT = SIGN + INT
+
+DECIMAL = union(cat(INT, literal(b"."), optional(INT)), cat(literal(b"."), INT))
+
+_EXP = chars(b"eE") + SIGNED_INT
+FLOAT = (INT + _EXP) | (DECIMAL + optional(_EXP))
+
+SIGNED_FLOAT = SIGN + FLOAT
+
+NUMBER = FLOAT | INT
+SIGNED_NUMBER = SIGN + NUMBER
+
+
+@pytest.mark.parametrize(
+    "literal",
+    [b'"\\\\"'],
+)
+def test_string_literals(literal):
+    assert matches(JSON_STRING, literal)
+
+
+@example('"\\\\"')
+@example("{} ")
+@settings(deadline=None)
+@given(JSON_STRATEGY)
+def test_any_json_from_lark_matches(json):
+    assert matches(JSON_VALUE, json.encode("utf-8"))
+    print("Done")
