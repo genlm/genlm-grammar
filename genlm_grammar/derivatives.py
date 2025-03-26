@@ -285,7 +285,7 @@ class Cat(Grammar):
             parts.append(rest.left)
             rest = rest.right
         parts.append(rest)
-        return f'cat({", ".join(map(repr, parts))})'
+        return f"cat({', '.join(map(repr, parts))})"
 
 
 @cached
@@ -347,7 +347,7 @@ class Union(Grammar):
     def __repr__(self):
         children = list(map(repr, self.children))
         children.sort(key=lambda s: (len(s), s))
-        return f'union({", ".join(children)})'
+        return f"union({', '.join(children)})"
 
 
 @cached
