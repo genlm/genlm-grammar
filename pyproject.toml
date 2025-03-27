@@ -1,6 +1,6 @@
 [project]
 name = "genlm-grammar"
-version = "0.0.1"
+dynamic = ["version"]
 description = ""
 authors = [
     { name = "The GenLM Team" }
@@ -13,7 +13,7 @@ dependencies = [
     "lark",
     "nltk",
     "numpy",
-    "arsenal @ git+https://github.com/timvieira/arsenal",
+    "arsenal",
     "IPython",
     "graphviz",
     "pandas",
@@ -38,8 +38,10 @@ docs = [
 include = ["*"]
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=64.0", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
 
 [tool.ruff]
 lint.ignore = ["E741", "E743"]
