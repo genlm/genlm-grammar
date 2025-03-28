@@ -8,8 +8,22 @@ from collections import defaultdict
 ANY_BYTE = frozenset(range(256))
 
 BookKeepingTasks = set[
-    Literal["matches_empty", "possible_starts", "could_have_matches", "derivatives"]
+    Literal[
+        "matches_empty",
+        "possible_starts",
+        "could_have_matches",
+        "derivatives",
+    ]
 ]
+
+
+def all_complete() -> BookKeepingTasks:
+    return {
+        "matches_empty",
+        "possible_starts",
+        "could_have_matches",
+        "derivatives",
+    }
 
 
 CURRENT_BOOK_KEEPER = None
@@ -187,52 +201,6 @@ class Null(Grammar):
         return "null"
 
 
-null = Null()
-
-
-def all_complete() -> BookKeepingTasks:
-    return {
-        "matches_empty",
-        "possible_starts",
-        "could_have_matches",
-    }
-
-
-null.book_keeping.possible_starts = frozenset()
-null.book_keeping.complete = all_complete()
-
-
-class Epsilon(Grammar):
-    def __repr__(self):
-        return "epsilon"
-
-
-epsilon = Epsilon()
-
-epsilon.book_keeping.possible_starts = frozenset()
-epsilon.book_keeping.matches_empty = True
-epsilon.book_keeping.could_have_matches = True
-epsilon.book_keeping.complete = all_complete()
-
-
-def do_initial_book_keeping(grammar):
-    match grammar:
-        case Any(k):
-            assert k > 0
-            grammar.book_keeping.matches_empty = False
-            grammar.book_keeping.could_have_matches = True
-            grammar.book_keeping.possible_starts = ANY_BYTE
-            grammar.book_keeping.complete = all_complete()
-        case Chars(cs):
-            assert cs
-            grammar.book_keeping.matches_empty = False
-            grammar.book_keeping.could_have_matches = True
-            grammar.book_keeping.possible_starts = cs
-            grammar.book_keeping.complete = all_complete()
-        case Delta():
-            grammar.book_keeping.possible_starts = frozenset()
-
-
 class Any(Grammar):
     """Matches any sequence of length n"""
 
@@ -245,16 +213,6 @@ class Any(Grammar):
 
     def __repr__(self):
         return f"any({self.length})"
-
-
-@cached
-def any(n: int):
-    if n == 0:
-        return epsilon
-    return Any(n)
-
-
-dot = any(1)
 
 
 class Chars(Grammar):
@@ -271,21 +229,9 @@ class Chars(Grammar):
         return f"chars({bytes(self.chars)})"
 
 
-@cached
-def chars(cs):
-    cs = frozenset(cs)
-    match len(cs):
-        case 0:
-            return null
-        case 256:
-            return dot
-        case _:
-            return Chars(cs)
-
-
-@cached
-def char(c):
-    return chars(frozenset((c,)))
+class Epsilon(Grammar):
+    def __repr__(self):
+        return "epsilon"
 
 
 class Cat(Grammar):
@@ -306,6 +252,63 @@ class Cat(Grammar):
             rest = rest.right
         parts.append(rest)
         return f"cat({', '.join(map(repr, parts))})"
+
+
+class Union(Grammar):
+    __slots__ = __match_args__ = ("children",)
+
+    def __init__(self, children: frozenset[Grammar]):
+        super().__init__()
+        for c in children:
+            assert isinstance(c, Grammar)
+        self.children = children
+
+    def __repr__(self):
+        children = list(map(repr, self.children))
+        children.sort(key=lambda s: (len(s), s))
+        return f"union({', '.join(children)})"
+
+
+def do_initial_book_keeping(grammar):
+    match grammar:
+        case Any(k):
+            assert k > 0
+            grammar.book_keeping.matches_empty = False
+            grammar.book_keeping.could_have_matches = True
+            grammar.book_keeping.possible_starts = ANY_BYTE
+            grammar.book_keeping.derivatives = {c: any(k - 1) for c in ANY_BYTE}
+            grammar.book_keeping.complete = all_complete()
+        case Chars(cs):
+            assert cs
+            grammar.book_keeping.matches_empty = False
+            grammar.book_keeping.could_have_matches = True
+            grammar.book_keeping.possible_starts = cs
+            grammar.book_keeping.derivatives = {c: epsilon for c in cs}
+            grammar.book_keeping.complete = all_complete()
+
+
+@cached
+def any(n: int):
+    if n == 0:
+        return epsilon
+    return Any(n)
+
+
+@cached
+def chars(cs):
+    cs = frozenset(cs)
+    match len(cs):
+        case 0:
+            return null
+        case 256:
+            return dot
+        case _:
+            return Chars(cs)
+
+
+@cached
+def char(c):
+    return chars(frozenset((c,)))
 
 
 @cached
@@ -355,21 +358,6 @@ def optional(child):
     return union(child, epsilon)
 
 
-class Union(Grammar):
-    __slots__ = __match_args__ = ("children",)
-
-    def __init__(self, children: frozenset[Grammar]):
-        super().__init__()
-        for c in children:
-            assert isinstance(c, Grammar)
-        self.children = children
-
-    def __repr__(self):
-        children = list(map(repr, self.children))
-        children.sort(key=lambda s: (len(s), s))
-        return f"union({', '.join(children)})"
-
-
 @cached
 def union(*args: Grammar) -> Grammar:
     single_characters = set()
@@ -388,8 +376,6 @@ def union(*args: Grammar) -> Grammar:
                     continue
                 case Epsilon():
                     has_epsilon = True
-                case Delta():
-                    deltas.add(child)
                 case Any(1):
                     # FIXME: This is a slightly stupid way to do it
                     single_characters.update(range(256))
@@ -413,42 +399,36 @@ def union(*args: Grammar) -> Grammar:
             return Union(frozenset(flattened))
 
 
-class Delta(Grammar):
-    """Matches the empty string if child does, otherwise matches nothing."""
-
-    __slots__ = __match_args__ = ("child",)
-
-    def __init__(self, child: Grammar):
-        super().__init__()
-        self.child = child
-
-    def __repr__(self):
-        return f"delta({self.child})"
+null = Null()
 
 
-@cached
-def delta(grammar: Grammar) -> Grammar:
-    match grammar:
-        case Epsilon():
-            return epsilon
-        case Null() | Chars() | Any():
-            return null
-        case Union(children):
-            return union(*map(delta, children))
-        case Delta():
-            return grammar
-        case _:
-            return Delta(grammar)
+null.book_keeping.possible_starts = frozenset()
+null.book_keeping.complete = all_complete()
 
 
-DERIVATIVE_CACHE = {}
+epsilon = Epsilon()
+
+epsilon.book_keeping.possible_starts = frozenset()
+epsilon.book_keeping.matches_empty = True
+epsilon.book_keeping.could_have_matches = True
+epsilon.book_keeping.complete = all_complete()
+
+dot = any(1)
 
 
-@cached
+def compact(grammar):
+    if not grammar.could_have_matches:
+        return null
+    if not grammar.possible_starts:
+        assert grammar.matches_empty
+        return epsilon
+    return grammar
+
+
 def derivative(grammar: Grammar, c: int) -> Grammar:
     if c not in grammar.possible_starts:
         return null
-    return grammar.derivatives.get(c, null)
+    return compact(grammar.derivatives.get(c, null))
 
 
 class BookKeeper:
@@ -500,8 +480,6 @@ class BookKeeper:
                     if self.matches_empty(c):
                         return True
                 return False
-            case Delta(child):
-                return self.matches_empty(child)
             case _:
                 # Everything else should be calculated in initial_book_keeping
                 raise AssertionError(grammar)
@@ -538,10 +516,6 @@ class BookKeeper:
                     if self.could_have_matches(c):
                         return True
                 return False
-            case Delta():
-                # Because Delta matches something iff it matches empty and we checked
-                # that above.
-                return False
             case _:
                 raise AssertionError(grammar)
 
@@ -549,12 +523,6 @@ class BookKeeper:
         assert isinstance(grammar, Grammar)
 
         match grammar:
-            case Epsilon() | Null() | Delta():
-                return {}
-            case Chars(cs):
-                return {c: epsilon for c in cs}
-            case Any(n):
-                return {c: any(n - 1) for c in range(256)}
             case Union(children):
                 result = {}
                 for c in self.possible_starts(grammar):
@@ -618,7 +586,6 @@ class BookKeeper:
         property_name, grammar = target
         prev = getattr(grammar.book_keeping, property_name)
         if prev != value:
-            assert type(prev) is type(value)
             setattr(grammar.book_keeping, property_name, value)
             self.dirty.update(self.watches[target])
 

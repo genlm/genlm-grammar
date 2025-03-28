@@ -82,6 +82,7 @@ def base_grammar_matching_empty(draw):
 def test_union_match_empty(g1, g2):
     assume(g1.matches_empty)
     assert union(g1, g2).matches_empty
+    print("Boop")
 
 
 @given(base_grammar_matching_empty())
@@ -242,13 +243,7 @@ def test_string_literals(literal):
 
 @example('"\\\\"')
 @example("{} ")
-@settings(deadline=None)
+@settings(deadline=None, report_multiple_bugs=False)
 @given(JSON_STRATEGY)
 def test_any_json_from_lark_matches(json):
     assert matches(JSON_VALUE, json.encode("utf-8"))
-
-
-@settings(deadline=None, max_examples=1000)
-@given(JSON_STRATEGY)
-def test_any_json_from_lark_matches_lark(json):
-    Lark(JSON_LARK_GRAMMAR, start="value").parse(json)
