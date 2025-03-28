@@ -18,7 +18,7 @@ from genlm_grammar.derivatives import (
 from hypothesis import strategies as st, given, assume, settings, Phase, example
 from hypothesis.stateful import rule, RuleBasedStateMachine
 from hypothesis.extra.lark import from_lark
-from lark import Lark
+from lark import Lark, LarkError
 import string
 import pytest
 
@@ -93,6 +93,7 @@ def test_should_match_empty(g):
 @given(st.from_regex(b"^[01]*$").map(lambda s: s.strip()))
 def test_sequence_matching(s):
     x = union(epsilon, cat(chars(b"01"), lazy(lambda: x)))
+    assert x.possible_starts == frozenset(b"01")
 
     assert matches(x, s)
 
@@ -119,7 +120,19 @@ string : ESCAPED_STRING
 %ignore WS
 """
 
-JSON_STRATEGY = from_lark(Lark(JSON_LARK_GRAMMAR, start="value"))
+JSON_LARK = Lark(JSON_LARK_GRAMMAR, start="value")
+
+
+def valid_json(s):
+    try:
+        JSON_LARK.parse(s)
+        return True
+    except LarkError:
+        return False
+
+
+# Workaround for https://github.com/HypothesisWorks/hypothesis/issues/4325
+JSON_STRATEGY = from_lark(JSON_LARK).filter(valid_json)
 
 WHITESPACE = seq(chars(frozenset(string.whitespace.encode("ascii"))))
 
@@ -233,4 +246,9 @@ def test_string_literals(literal):
 @given(JSON_STRATEGY)
 def test_any_json_from_lark_matches(json):
     assert matches(JSON_VALUE, json.encode("utf-8"))
-    print("Done")
+
+
+@settings(deadline=None, max_examples=1000)
+@given(JSON_STRATEGY)
+def test_any_json_from_lark_matches_lark(json):
+    Lark(JSON_LARK_GRAMMAR, start="value").parse(json)

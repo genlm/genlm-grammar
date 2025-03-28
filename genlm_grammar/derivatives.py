@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from functools import wraps
+from re import L
 from typing import Iterable, Callable, Literal
 from collections import defaultdict
 
@@ -7,8 +8,11 @@ from collections import defaultdict
 ANY_BYTE = frozenset(range(256))
 
 BookKeepingTasks = set[
-    Literal["matches_empty", "possible_starts", "could_have_matches"]
+    Literal["matches_empty", "possible_starts", "could_have_matches", "derivatives"]
 ]
+
+
+CURRENT_BOOK_KEEPER = None
 
 
 @dataclass(slots=True)
@@ -16,6 +20,7 @@ class BookKeeping:
     matches_empty: bool = False
     possible_starts: frozenset[int] = ANY_BYTE
     could_have_matches: bool = False
+    derivatives: dict[str, "Grammar"] = field(default_factory=dict)
     complete: BookKeepingTasks = field(default_factory=set)
 
 
@@ -28,10 +33,18 @@ GRAMMAR_KWARGS = dict(
 
 def book_keeping_property(name):
     def f(self):
+        global CURRENT_BOOK_KEEPER
         if name not in self.book_keeping.complete:
-            bk = BookKeeper()
-            bk.request((name, self))
-            bk.run()
+            key = (name, self)
+            if CURRENT_BOOK_KEEPER is None:
+                try:
+                    CURRENT_BOOK_KEEPER = BookKeeper()
+                    CURRENT_BOOK_KEEPER.request(key)
+                    CURRENT_BOOK_KEEPER.run()
+                finally:
+                    CURRENT_BOOK_KEEPER = None
+            else:
+                return CURRENT_BOOK_KEEPER.get_value(key)
             assert name in self.book_keeping.complete
         return getattr(self.book_keeping, name)
 
@@ -48,6 +61,10 @@ class Grammar:
     matches_empty = book_keeping_property("matches_empty")
     could_have_matches = book_keeping_property("could_have_matches")
     possible_starts = book_keeping_property("possible_starts")
+    derivatives = book_keeping_property("derivatives")
+
+    def force(self) -> "Grammar":
+        return self
 
     # We cache creation of all grammar objects, so equality and
     # hashing are just by reference.
@@ -107,6 +124,9 @@ class Lazy(Grammar):
         assert isinstance(self.__thunk, Grammar)
         assert not isinstance(self.__thunk, Lazy)
         return self.__thunk
+
+    def force(self) -> "Grammar":
+        return self.value
 
     @property
     def has_been_forced(self):
@@ -426,32 +446,9 @@ DERIVATIVE_CACHE = {}
 
 @cached
 def derivative(grammar: Grammar, c: int) -> Grammar:
-    assert isinstance(grammar, Grammar)
-    assert isinstance(c, int)
-    match grammar:
-        case Epsilon() | Null() | Delta():
-            return null
-        case Chars(cs):
-            if c in cs:
-                return epsilon
-            else:
-                return null
-        case Any(n):
-            return any(n - 1)
-        case Union(children):
-            return union(*[derivative(child, c) for child in children])
-        case Cat(left, right):
-            return union(
-                cat(delta(left), lazy(lambda: derivative(right, c))),
-                cat(derivative(left, c), right),
-            )
-        case Lazy():
-            if grammar.has_been_forced:
-                return derivative(grammar.value, c)
-            else:
-                return lazy(lambda: derivative(grammar.value, c))
-        case _:
-            raise AssertionError(grammar)
+    if c not in grammar.possible_starts:
+        return null
+    return grammar.derivatives.get(c, null)
 
 
 class BookKeeper:
@@ -548,6 +545,39 @@ class BookKeeper:
             case _:
                 raise AssertionError(grammar)
 
+    def calc_derivatives(self, grammar):
+        assert isinstance(grammar, Grammar)
+
+        match grammar:
+            case Epsilon() | Null() | Delta():
+                return {}
+            case Chars(cs):
+                return {c: epsilon for c in cs}
+            case Any(n):
+                return {c: any(n - 1) for c in range(256)}
+            case Union(children):
+                result = {}
+                for c in self.possible_starts(grammar):
+                    child = union(*[derivative(child, c).force() for child in children])
+                    if child != null:
+                        result[c] = child
+                return result
+            case Cat(left, right):
+                result = {}
+                for c in self.possible_starts(left):
+                    result[c] = cat(derivative(left, c).force(), right)
+                if self.matches_empty(left):
+                    for c in self.possible_starts(right):
+                        if c in result:
+                            result[c] = union(result[c], derivative(right, c).force())
+                        else:
+                            result[c] = derivative(right, c)
+                return result
+            case Lazy():
+                return grammar.value.derivatives
+            case _:
+                raise AssertionError(grammar)
+
     def matches_empty(self, grammar):
         return self.get_value(("matches_empty", grammar))
 
@@ -588,6 +618,7 @@ class BookKeeper:
         property_name, grammar = target
         prev = getattr(grammar.book_keeping, property_name)
         if prev != value:
+            assert type(prev) is type(value)
             setattr(grammar.book_keeping, property_name, value)
             self.dirty.update(self.watches[target])
 
@@ -595,5 +626,4 @@ class BookKeeper:
 def matches(grammar, string):
     for c in string:
         grammar = derivative(grammar, c)
-        print(grammar)
     return grammar.matches_empty
