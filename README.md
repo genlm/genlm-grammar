@@ -8,6 +8,14 @@
 
 A Python library for working with weighted context-free grammars (WCFGs), weighted finite state automata (WFSAs) and weighted finite state transducers (WFSTs). The library provides efficient implementations for grammar operations, parsing algorithms, and language model functionality.
 
+## Quick Start
+
+This library can be installed via pip:
+
+```bash
+pip install genlm.grammar
+```
+
 ## Key Features
 
 ### Grammar Operations
@@ -47,14 +55,6 @@ A Python library for working with weighted context-free grammars (WCFGs), weight
 - Efficient chart and agenda-based algorithms
 - Grammar-FST composition
 - Visualization support via Graphviz
-
-## Quick Start
-
-This library can be installed via pip:
-
-```bash
-pip install genlm.grammar
-```
 
 ## Development
 
