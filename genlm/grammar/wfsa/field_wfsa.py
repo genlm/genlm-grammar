@@ -18,8 +18,8 @@ from functools import cached_property
 import numpy as np
 from numpy import linalg
 
-from genlm_grammar.semiring import Float
-from genlm_grammar.wfsa import base
+from genlm.grammar.semiring import Float
+from genlm.grammar.wfsa import base
 
 # from scipy import linalg
 

@@ -3,9 +3,9 @@ import numpy as np
 import string
 from arsenal import colors
 
-from genlm_grammar import EOS
-from genlm_grammar import BoolCFGLM, locally_normalize, EarleyLM, Earley
-from genlm_grammar.lark_interface import LarkStuff
+from genlm.grammar import EOS
+from genlm.grammar import BoolCFGLM, locally_normalize, EarleyLM, Earley
+from genlm.grammar.lark_interface import LarkStuff
 
 
 grammar1 = r"""

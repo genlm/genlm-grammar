@@ -1,5 +1,5 @@
 [project]
-name = "genlm-grammar"
+name = "genlm.grammar"
 dynamic = ["version"]
 description = ""
 authors = [
@@ -35,7 +35,7 @@ docs = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["*"]
+include = ["genlm/*"]
 
 [build-system]
 requires = ["setuptools>=64.0", "setuptools-scm>=8"]

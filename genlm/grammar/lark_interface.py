@@ -7,8 +7,8 @@ import arsenal
 import warnings
 from collections import Counter
 
-from genlm_grammar import WFSA, Float
-from genlm_grammar.cfg import CFG, Rule
+from genlm.grammar import WFSA, Float
+from genlm.grammar.cfg import CFG, Rule
 
 
 class LarkStuff:

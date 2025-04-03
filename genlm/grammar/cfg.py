@@ -7,10 +7,10 @@ from itertools import product
 # import nltk
 from arsenal import Integerizer, colors
 
-from genlm_grammar.fst import FST
-from genlm_grammar.wfsa import EPSILON
-from genlm_grammar.linear import WeightedGraph
-from genlm_grammar.semiring import Boolean, Expectation, Float
+from genlm.grammar.fst import FST
+from genlm.grammar.wfsa import EPSILON
+from genlm.grammar.linear import WeightedGraph
+from genlm.grammar.semiring import Boolean, Expectation, Float
 
 
 def _gen_nt(prefix=""):
@@ -1298,7 +1298,7 @@ class CFG:
 
     def truncate_length(self, max_length):
         "Transform this grammar so that it only generates strings with length ≤ `max_length`."
-        from genlm_grammar import WFSA
+        from genlm.grammar import WFSA
 
         m = WFSA(self.R)
         m.add_I(0, self.R.one)

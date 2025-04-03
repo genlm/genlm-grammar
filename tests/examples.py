@@ -1,5 +1,5 @@
-from genlm_grammar.cfg import CFG
-from genlm_grammar.semiring import Float
+from genlm.grammar.cfg import CFG
+from genlm.grammar.semiring import Float
 
 # simple CNF grammar, generates one string
 abcd = CFG.from_string(

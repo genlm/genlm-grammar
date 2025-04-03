@@ -1,6 +1,6 @@
-[![Docs](https://github.com/chisym/genlm-grammar/actions/workflows/docs.yml/badge.svg)](https://chisym.github.io/genlm-grammar/)
-[![Tests](https://github.com/chisym/genlm-grammar/actions/workflows/pytest.yml/badge.svg)](https://chisym.com/chisym/genlm-grammar/actions/workflows/pytest.yml)
-[![codecov](https://codecov.io/github/chisym/genlm-grammar/graph/badge.svg?token=TQBAQ1uA6y)](https://codecov.io/github/chisym/genlm-grammar)
+[![Docs](https://github.com/genlm/grammar/actions/workflows/docs.yml/badge.svg)](https://genlm.github.io/grammar/)
+[![Tests](https://github.com/genlm/grammar/actions/workflows/pytest.yml/badge.svg)](https://genlm.github.io/grammar/actions/workflows/pytest.yml)
+[![codecov](https://codecov.io/github/genlm/grammar/graph/badge.svg?token=TQBAQ1uA6y)](https://codecov.io/github/genlm/grammar)
 
 # GenLM Grammar
 
@@ -48,50 +48,12 @@ A Python library for working with weighted context-free grammars (WCFGs), weight
 
 ## Quick Start
 
-### Installation
-
-Clone the repository:
+This library can be installed via pip:
 
 ```bash
-git clone git@github.com:chisym/genlm-grammar.git
-cd genlm-grammar
+pip install genlm.grammar
 ```
 
-and install with pip:
+## Development
 
-```bash
-pip install .
-```
-
-This installs the package without development dependencies. For development, install in editable mode with:
-
-```bash
-pip install -e ".[test,docs]"
-```
-which also installs the dependencies needed for testing (test) and documentation (docs).
-
-## Requirements
-
-- Python >= 3.10
-- The core dependencies listed in the `setup.py` file of the repository.
-
-## Testing
-
-When test dependencies are installed, the test suite can be run via:
-```bash
-pytest tests
-```
-
-## Documentation
-
-Documentation is generated using [mkdocs](https://www.mkdocs.org/) and hosted on GitHub Pages. To build the documentation, run:
-
-```bash
-mkdocs build
-```
-
-To serve the documentation locally, run:
-
-```bash
-mkdocs serve
-```
+See [DEVELOPING.md](DEVELOPING.md) for information on how to install the package in development mode.

@@ -1,8 +1,8 @@
 from collections import defaultdict
 
-from genlm_grammar.lm import LM
-from genlm_grammar.cfglm import EOS, add_EOS, locally_normalize, CFG
-from genlm_grammar import Float
+from genlm.grammar.lm import LM
+from genlm.grammar.cfglm import EOS, add_EOS, locally_normalize, CFG
+from genlm.grammar import Float
 
 
 class CKYLM(LM):

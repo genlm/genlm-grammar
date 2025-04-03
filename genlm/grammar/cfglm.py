@@ -2,9 +2,9 @@
 Fast computation of the posterior distrubtion over the next word in a WCFG language model.
 """
 
-from genlm_grammar.cfg import CFG, _gen_nt
-from genlm_grammar.lm import LM
-from genlm_grammar.semiring import Boolean, Float
+from genlm.grammar.cfg import CFG, _gen_nt
+from genlm.grammar.lm import LM
+from genlm.grammar.semiring import Boolean, Float
 
 
 EOS = "▪"
@@ -90,11 +90,11 @@ class BoolCFGLM(LM):
         if cfg.R != Boolean:
             cfg = cfg.map_values(lambda x: Boolean(x > 0), Boolean)
         if alg == "earley":
-            from genlm_grammar.parse.earley import Earley
+            from genlm.grammar.parse.earley import Earley
 
             self.model = Earley(cfg.prefix_grammar)
         elif alg == "cky":
-            from genlm_grammar.parse.cky import CKYLM
+            from genlm.grammar.parse.cky import CKYLM
 
             self.model = CKYLM(cfg)
         else:

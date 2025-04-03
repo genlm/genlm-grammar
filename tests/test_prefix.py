@@ -3,8 +3,8 @@ from itertools import product
 from arsenal import colors
 
 import examples
-from genlm_grammar.cfg import CFG
-from genlm_grammar.semiring import Real
+from genlm.grammar.cfg import CFG
+from genlm.grammar.semiring import Real
 
 
 def prefix_weight_bf(self, s, depth, verbose=False):

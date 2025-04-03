@@ -1,6 +1,6 @@
 import re
 import numpy as np
-from genlm_grammar.chart import Chart
+from genlm.grammar.chart import Chart
 
 
 class Semiring:

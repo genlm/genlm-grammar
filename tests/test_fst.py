@@ -1,4 +1,4 @@
-from genlm_grammar import CFG, Float, EPSILON, FST
+from genlm.grammar import CFG, Float, EPSILON, FST
 
 
 def test_fst_cfg1():

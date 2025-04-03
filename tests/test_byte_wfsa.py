@@ -1,6 +1,6 @@
 import string
-from genlm_grammar import Float, WFSA
-from genlm_grammar.lark_interface import interegular_to_wfsa
+from genlm.grammar import Float, WFSA
+from genlm.grammar.lark_interface import interegular_to_wfsa
 
 
 def test_negated_pattern():
