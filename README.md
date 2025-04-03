@@ -1,8 +1,10 @@
+
+![genlm_repo_logos 003](https://github.com/user-attachments/assets/3efcaed4-8ca5-4dea-a774-296bc8db64c8)
+
+
 [![Docs](https://github.com/genlm/grammar/actions/workflows/docs.yml/badge.svg)](https://genlm.github.io/grammar/)
 [![Tests](https://github.com/genlm/grammar/actions/workflows/pytest.yml/badge.svg)](https://genlm.github.io/grammar/actions/workflows/pytest.yml)
 [![codecov](https://codecov.io/github/genlm/grammar/graph/badge.svg?token=TQBAQ1uA6y)](https://codecov.io/github/genlm/grammar)
-
-# GenLM Grammar
 
 A Python library for working with weighted context-free grammars (WCFGs), weighted finite state automata (WFSAs) and weighted finite state transducers (WFSTs). The library provides efficient implementations for grammar operations, parsing algorithms, and language model functionality.
 
