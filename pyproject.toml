@@ -35,7 +35,7 @@ docs = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["genlm/*"]
+include = ["genlm*"]
 
 [build-system]
 requires = ["setuptools>=64.0", "setuptools-scm>=8"]
