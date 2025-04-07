@@ -4,7 +4,7 @@
 
 [![Docs](https://github.com/genlm/genlm-grammar/actions/workflows/docs.yml/badge.svg)](https://genlm.github.io/genlm-grammar/)
 [![Tests](https://github.com/genlm/genlm-grammar/actions/workflows/pytest.yml/badge.svg)](https://genlm.github.io/genlm-grammar/actions/workflows/pytest.yml)
-[![codecov](https://codecov.io/github/genlm/genlm-grammar/graph/badge.svg?token=BFK6YDCM9Z)](https://codecov.io/github/genlm/genlm-grammar)
+[![codecov](https://codecov.io/github/genlm/genlm-grammar/graph/badge.svg?token=rBj8AYdpe4)](https://codecov.io/github/genlm/genlm-grammar)
 
 A Python library for working with weighted context-free grammars (WCFGs), weighted finite state automata (WFSAs) and weighted finite state transducers (WFSTs). The library provides efficient implementations for grammar operations, parsing algorithms, and language model functionality.
 
