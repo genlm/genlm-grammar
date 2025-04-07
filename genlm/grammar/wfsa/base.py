@@ -6,7 +6,7 @@ from arsenal import Integerizer
 from frozendict import frozendict
 from graphviz import Digraph
 
-from genlm_grammar.linear import WeightedGraph
+from genlm.grammar.linear import WeightedGraph
 
 # EPSILON = "ε"
 EPSILON = ""
@@ -115,7 +115,7 @@ class WFSA:
         return m
 
     def to_fst(self):
-        from genlm_grammar.fst import FST
+        from genlm.grammar.fst import FST
 
         return FST.diag(self)
 
@@ -485,7 +485,7 @@ class WFSA:
         should be left or right recursive.
 
         """
-        from genlm_grammar.cfg import CFG, _gen_nt
+        from genlm.grammar.cfg import CFG, _gen_nt
 
         if S is None:
             S = _gen_nt()

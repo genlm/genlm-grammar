@@ -2,11 +2,11 @@ import pytest
 from arsenal import colors
 
 import examples
-from genlm_grammar import add_EOS, EOS, CFG
-from genlm_grammar.parse.earley import Earley
-from genlm_grammar.parse.earley import EarleyLM
-from genlm_grammar.parse.cky import CKYLM, IncrementalCKY
-from genlm_grammar.semiring import Float, MaxTimes
+from genlm.grammar import add_EOS, EOS, CFG
+from genlm.grammar.parse.earley import Earley
+from genlm.grammar.parse.earley import EarleyLM
+from genlm.grammar.parse.cky import CKYLM, IncrementalCKY
+from genlm.grammar.semiring import Float, MaxTimes
 
 
 def test_cycles():

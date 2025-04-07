@@ -1,10 +1,20 @@
-[![Docs](https://github.com/chisym/genlm-grammar/actions/workflows/docs.yml/badge.svg)](https://chisym.github.io/genlm-grammar/)
-[![Tests](https://github.com/chisym/genlm-grammar/actions/workflows/pytest.yml/badge.svg)](https://chisym.com/chisym/genlm-grammar/actions/workflows/pytest.yml)
-[![codecov](https://codecov.io/github/chisym/genlm-grammar/graph/badge.svg?token=TQBAQ1uA6y)](https://codecov.io/github/chisym/genlm-grammar)
 
-# GenLM Grammar
+![genlm_repo_logos 003](https://github.com/user-attachments/assets/3efcaed4-8ca5-4dea-a774-296bc8db64c8)
+
+
+[![Docs](https://github.com/genlm/genlm-grammar/actions/workflows/docs.yml/badge.svg)](https://genlm.github.io/genlm-grammar/)
+[![Tests](https://github.com/genlm/genlm-grammar/actions/workflows/pytest.yml/badge.svg)](https://genlm.github.io/genlm-grammar/actions/workflows/pytest.yml)
+[![codecov](https://codecov.io/github/genlm/genlm-grammar/graph/badge.svg?token=rBj8AYdpe4)](https://codecov.io/github/genlm/genlm-grammar)
 
 A Python library for working with weighted context-free grammars (WCFGs), weighted finite state automata (WFSAs) and weighted finite state transducers (WFSTs). The library provides efficient implementations for grammar operations, parsing algorithms, and language model functionality.
+
+## Quick Start
+
+This library can be installed via pip:
+
+```bash
+pip install genlm-grammar
+```
 
 ## Key Features
 
@@ -46,52 +56,6 @@ A Python library for working with weighted context-free grammars (WCFGs), weight
 - Grammar-FST composition
 - Visualization support via Graphviz
 
-## Quick Start
+## Development
 
-### Installation
-
-Clone the repository:
-
-```bash
-git clone git@github.com:chisym/genlm-grammar.git
-cd genlm-grammar
-```
-
-and install with pip:
-
-```bash
-pip install .
-```
-
-This installs the package without development dependencies. For development, install in editable mode with:
-
-```bash
-pip install -e ".[test,docs]"
-```
-which also installs the dependencies needed for testing (test) and documentation (docs).
-
-## Requirements
-
-- Python >= 3.10
-- The core dependencies listed in the `setup.py` file of the repository.
-
-## Testing
-
-When test dependencies are installed, the test suite can be run via:
-```bash
-pytest tests
-```
-
-## Documentation
-
-Documentation is generated using [mkdocs](https://www.mkdocs.org/) and hosted on GitHub Pages. To build the documentation, run:
-
-```bash
-mkdocs build
-```
-
-To serve the documentation locally, run:
-
-```bash
-mkdocs serve
-```
+See [DEVELOPING.md](DEVELOPING.md) for information on how to install the package in development mode.

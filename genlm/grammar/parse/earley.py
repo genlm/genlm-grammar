@@ -1,42 +1,18 @@
 import numpy as np
+from arsenal import Integerizer
+
 from collections import defaultdict
 
-from arsenal import Integerizer
 from arsenal.datastructures.heap import LocatorMaxHeap
 
-from genlm_grammar.lm import LM
-from genlm_grammar.cfg import CFG
-from genlm_grammar.linear import WeightedGraph
-from genlm_grammar.semiring import Boolean
-from genlm_grammar import Float
-from genlm_grammar.cfglm import EOS, add_EOS, locally_normalize
+from genlm.grammar.cfglm import EOS, add_EOS, locally_normalize
+from genlm.grammar.lm import LM
+from genlm.grammar.semiring import Float
+from genlm.grammar.cfg import CFG
 
 
 class EarleyLM(LM):
-    """Language model using Earley parsing for context-free grammars.
-
-    Implements a language model using Earley's algorithm for incremental parsing of
-    context-free grammars. The grammar is automatically converted to prefix form for
-    efficient left-to-right processing.
-
-    Args:
-        cfg (CFG): The context-free grammar to use as the language model
-
-    Attributes:
-        cfg (CFG): The original context-free grammar before prefix transformation
-        model (Earley): The Earley parser for computing probabilities
-    """
-
     def __init__(self, cfg):
-        """Initialize an Earley-based language model.
-
-        Args:
-            cfg (CFG): The context-free grammar to use as the language model. Will be
-                converted to prefix form for incremental parsing.
-
-        Raises:
-            AssertionError: If EOS token not in grammar vocabulary after transformation
-        """
         if EOS not in cfg.V:
             cfg = add_EOS(cfg)
         self.cfg = cfg  # Note: <- cfg before prefix transform & normalization!
@@ -44,53 +20,19 @@ class EarleyLM(LM):
         super().__init__(V=cfg.V, eos=EOS)
 
     def p_next(self, context):
-        """Compute probability distribution over next tokens given a context.
-
-        Args:
-            context: Sequence of tokens representing the prefix
-
-        Returns:
-            Normalized probability distribution over possible next tokens
-
-        Raises:
-            AssertionError: If context contains tokens not in vocabulary
-        """
         assert set(context) <= self.V, f"OOVs detected: {set(context) - self.V}"
         return self.model.next_token_weights(self.model.chart(context)).normalize()
 
     def clear_cache(self):
-        """Clear the parser's chart cache."""
         self.model.clear_cache()
 
     @classmethod
     def from_string(cls, x, semiring=Float, **kwargs):
-        """Create an EarleyLM from a grammar string representation.
-
-        Args:
-            x (str): String representation of the grammar
-            semiring: Semiring to use for weights (default: Float)
-            **kwargs: Additional arguments for grammar normalization
-
-        Returns:
-            EarleyLM: A new language model instance
-        """
         return cls(locally_normalize(CFG.from_string(x, semiring), **kwargs))
 
 
 class Column:
-    """
-    Represents a column in the Earley chart at position k in the input.
-
-    Attributes:
-        k: Position in the input string
-        i_chart: Dictionary of incomplete items
-        c_chart: Dictionary of complete items
-        waiting_for: Maps nonterminals to items waiting for them
-        Q: Priority queue for processing items
-        rescale: Rescaling coefficient for numerical stability
-    """
-
-    __slots__ = ("k", "i_chart", "c_chart", "waiting_for", "Q", "rescale")
+    __slots__ = ("k", "i_chart", "c_chart", "waiting_for", "Q")
 
     def __init__(self, k):
         self.k = k
@@ -101,27 +43,12 @@ class Column:
         #   Y => {(I, X, Ys) | phrase(I,X/[Y],J) ≠ 0}
         self.waiting_for = defaultdict(list)
 
-        # priority queue used when first filling the column
-        self.Q = LocatorMaxHeap()
-
-        self.rescale = None
-
 
 class Earley:
     """
-    Implements a semiring-weighted version of Earley's algorithm with O(N³|G|) time complexity.
-
-    This implementation includes rescaling for numerical stability and supports weighted grammars.
-
-    Warning:
-        Assumes that nullary rules and unary chain cycles have been removed.
-
-    Attributes:
-        cfg: Context-free grammar (preprocessed)
-        order: Topological ordering of grammar symbols
-        _chart: Cache of computed chart columns
-        R: Left-corner graph
-        rhs: Cached right-hand sides of rules
+    Implements a semiring-weighted version Earley's algorithm that runs in $\mathcal{O}(N^3|G|)$ time.
+    Note that nullary rules and unary chain cycles will be been removed, altering the
+    set of derivation trees.
     """
 
     __slots__ = (
@@ -131,7 +58,7 @@ class Earley:
         "V",
         "eos",
         "_initial_column",
-        "R",
+        "R_outgoing",
         "rhs",
         "ORDER_MAX",
         "intern_Ys",
@@ -151,17 +78,19 @@ class Earley:
         # rules in a topological order.
         self.order = cfg._unary_graph_transpose().buckets
 
-        self.ORDER_MAX = max(self.order.values())
+        self.ORDER_MAX = 1 + max(self.order.values())
 
         # left-corner graph
-        R = WeightedGraph(Boolean)
+        R_outgoing = defaultdict(set)
         for r in cfg:
             if len(r.body) == 0:
                 continue
             A = r.head
             B = r.body[0]
-            R[A, B] += Boolean.one
-        self.R = R
+            if cfg.is_terminal(B):
+                continue
+            R_outgoing[A].add(B)
+        self.R_outgoing = R_outgoing
 
         # Integerize rule right-hand side states
         intern_Ys = Integerizer()
@@ -191,10 +120,10 @@ class Earley:
                 self.first_Ys[code] = Ys[0]
                 self.rest_Ys[code] = intern_Ys(Ys[1:])
 
+        # self.generate_rust_test_case()
+
         col = Column(0)
         self.PREDICT(col)
-        col.rescale = self.cfg.R.one
-        col.Q = None
         self._initial_column = col
 
     def clear_cache(self):
@@ -212,19 +141,8 @@ class Earley:
 
         cols = self.chart(x)
 
-        value = cols[N].c_chart.get((0, self.cfg.S), self.cfg.R.zero)
-        return value / self.rescale(cols, 0, N)
-
-    def rescale(self, cols, I, K):
-        "returns the product of the rescaling coefficients for `cols[I:K]`."
-        C = self.cfg.R.one
-        for c in cols[I:K]:
-            C *= c.rescale
-        return C
-
-    def log_rescale(self, cols, I, K):
-        "returns the product of the rescaling coefficients for `cols[I:K]`."
-        return sum(np.log(c.rescale) for c in cols[I:K])
+        value = cols[N].c_chart.get((0, self.cfg.S))
+        return value if value is not None else self.cfg.R.zero
 
     def chart(self, x):
         x = tuple(x)
@@ -243,13 +161,6 @@ class Earley:
                 last_chart
             ]  # TODO: avoid list addition here as it is not constant time!
 
-    def logp(self, x):
-        cols = self.chart(x)
-        N = len(x)
-        return np.log(
-            cols[N].c_chart.get((0, self.cfg.S), self.cfg.R.zero)
-        ) - self.log_rescale(cols, 0, N)
-
     def next_column(self, prev_cols, token):
         prev_col = prev_cols[-1]
         next_col = Column(prev_cols[-1].k + 1)
@@ -259,39 +170,26 @@ class Earley:
         rest_Ys = self.rest_Ys
         _update = self._update
 
+        Q = LocatorMaxHeap()
+
         # SCAN: phrase(I, X/Ys, K) += phrase(I, X/[Y|Ys], J) * word(J, Y, K)
         for item in prev_col.waiting_for[token]:
             (I, X, Ys) = item
-            _update(
-                next_col,
-                I,
-                X,
-                rest_Ys[Ys],
-                prev_col_i_chart[item] * prev_col.rescale,
-            )
+            _update(next_col, Q, I, X, rest_Ys[Ys], prev_col_i_chart[item])
 
         # ATTACH: phrase(I, X/Ys, K) += phrase(I, X/[Y|Ys], J) * phrase(J, Y/[], K)
-        Q = next_col.Q
         while Q:
-            (J, Y) = item = Q.pop()[0]
+            jy = Q.pop()[0]
+            (J, Y) = jy
+
             col_J = prev_cols[J]
             col_J_i_chart = col_J.i_chart
-            y = next_col_c_chart[item]
-            for item in col_J.waiting_for[Y]:
-                (I, X, Ys) = item
-                _update(next_col, I, X, rest_Ys[Ys], col_J_i_chart[item] * y)
+            y = next_col_c_chart[jy]
+            for customer in col_J.waiting_for[Y]:
+                (I, X, Ys) = customer
+                _update(next_col, Q, I, X, rest_Ys[Ys], col_J_i_chart[customer] * y)
 
         self.PREDICT(next_col)
-
-        num = prev_col.c_chart.get((0, self.cfg.S), self.cfg.R.zero)
-        den = next_col.c_chart.get((0, self.cfg.S), self.cfg.R.zero)
-
-        if den == 0 or num == 0:
-            next_col.rescale = 1
-        else:
-            next_col.rescale = num / den * prev_col.rescale
-
-        next_col.Q = None  # optional: free up some memory
 
         return next_col
 
@@ -305,32 +203,35 @@ class Earley:
         # useful there must be an item of the form (I, X', [X, ...], K) in this
         # column for which lc(X', X) is true.
         if col.k == 0:
-            targets = {self.cfg.S}
+            agenda = [self.cfg.S]
         else:
-            targets = set(col.waiting_for)
+            agenda = list(col.waiting_for)
 
-        reachable = set(targets)
-        agenda = list(targets)
+        outgoing = self.R_outgoing
+
+        reachable = set(agenda)
+
         while agenda:
             X = agenda.pop()
-            for Y in self.R.outgoing[X]:
+            for Y in outgoing[X]:
                 if Y not in reachable:
                     reachable.add(Y)
                     agenda.append(Y)
 
         rhs = self.rhs
+        _update = self._update
         for X in reachable:
             for w, Ys in rhs.get(X, ()):
-                self._update(col, k, X, Ys, w)
+                _update(col, None, k, X, Ys, w)
 
-    def _update(self, col, I, X, Ys, value):
+    def _update(self, col, Q, I, X, Ys, value):
         K = col.k
         if Ys == 0:
             # Items of the form phrase(I, X/[], K)
             item = (I, X)
             was = col.c_chart.get(item)
             if was is None:
-                col.Q[item] = -((K - I) * self.ORDER_MAX + self.order[X])
+                Q[item] = -((K - I) * self.ORDER_MAX + self.order[X])
                 col.c_chart[item] = value
             else:
                 col.c_chart[item] = was + value
@@ -368,13 +269,14 @@ class Earley:
     # q(J, Y) += phrase(I, X/[Y], J) * q(I, X)
     #
     # These items satisfy (I > J) and (X > Y) where the latter is the
-    # nonterminal ordering.
-
+    # nonterminal ordering.  Thus, we can efficiently evaluate these equations
+    # by backward chaining.
+    #
+    # The final output is the vector
+    #
+    # p(W) += q(I, X) * phrase(I, X/[W], J)  where len(J) * terminal(W).
+    #
     def next_token_weights(self, cols):
-        "An O(N²) time algorithm to the total weight of a each next-token extension."
-        # XXX: the rescaling coefficient will cancel out when we normalized the next-token weights
-        # C = self.rescale(chart, 0, N-1)
-
         is_terminal = self.cfg.is_terminal
         zero = self.cfg.R.zero
 
@@ -398,8 +300,7 @@ class Earley:
                         total += col_i_chart[I, X, Ys] * value
                 p[Y] = total
 
-        p = p.trim()
-        return p.normalize() if p else p
+        return p
 
     def _helper(self, top, cols, q):
         value = q.get(top)
@@ -440,6 +341,110 @@ class Earley:
                     node.value += cols[J].i_chart[arc] * neighbor_value
 
         return q[top]
+
+    def generate_rust_test_case(self):
+        # generates a test case in Rust code by exporting the parser state variables
+        # Copy-paste the printout to `mod tests { ... }` in lib.rs to debug.
+
+        print(
+            """
+    #[test]
+    fn test_earley() {{
+
+        let rhs: HashMap<u32, Vec<RHS>> = [
+            {}
+        ].iter().cloned().collect();
+        """.format(
+                ", ".join(
+                    f"({x}, "
+                    + "vec![{}])".format(", ".join(f"({float(u)}, {v})" for u, v in y))
+                    for x, y in self.rhs.items()
+                )
+            )
+        )
+
+        print(
+            """
+        let order: HashMap<u32, u32> = [
+            {}
+        ].iter().cloned().collect();
+        """.format(", ".join(f"({u}, {v})" for u, v in self.order.items()))
+        )
+
+        print(
+            """
+        let outgoing: HashMap<u32, Vec<u32>> = [
+            {}
+        ].iter().cloned().collect();
+        """.format(
+                ", ".join(
+                    "({}, vec![{}])".format(i, ", ".join(map(str, s)))
+                    for i, s in self.R_outgoing.items()
+                )
+            )
+        )
+
+        print(
+            """
+        let first_ys = vec![
+            {}
+        ].iter().cloned().collect();
+        """.format(
+                ", ".join(
+                    f'Terminal(String::from("{y}"))'
+                    if isinstance(y, str)
+                    else f"Nonterminal({y})"
+                    for y in self.first_Ys
+                )
+            )
+        )
+
+        print(
+            """
+        let rest_ys = vec![
+            {}
+        ];
+        """.format(", ".join(map(str, self.rest_Ys)))
+        )
+
+        print(
+            """
+        let unit_ys = vec![
+            {}
+        ];
+        """.format(", ".join(map(lambda x: str(bool(x)).lower(), self.unit_Ys)))
+        )
+
+        print(
+            """
+        let vocab = [
+            {}
+        ].iter().cloned().collect();
+        """.format(", ".join(f'String::from("{v}")' for v in self.cfg.V))
+        )
+
+        print(
+            """
+        let empty_weight = {};
+        let start = {};
+        let order_max = {};
+        """.format(
+                sum(r.w for r in self.cfg.rhs[self.cfg.S] if r.body == ()),
+                self.cfg.S,
+                self.ORDER_MAX,
+            )
+        )
+
+        print("""
+        let mut earley = Earley::new(
+            rhs, start, order, order_max, outgoing, first_ys,
+            rest_ys, unit_ys, vocab, empty_weight,
+        );
+        let chart = earley.p_next(vec![]);
+        dbg!(&chart);
+
+    }}
+        """)
 
 
 class Node:
