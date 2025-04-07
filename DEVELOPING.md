@@ -1,15 +1,15 @@
 # Developer's Guide
 
 This guide describes how to complete various tasks you'll encounter when working
-on the `genlm.grammar` codebase.
+on the `genlm-grammar` codebase.
 
 ### Installation
 
 Clone the repository:
 
 ```bash
-git clone git@github.com:genlm/grammar.git
-cd grammar
+git clone git@github.com:genlm/genlm-grammar.git
+cd genlm-grammar
 ```
 
 and install with pip:
