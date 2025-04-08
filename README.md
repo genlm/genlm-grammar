@@ -1,10 +1,27 @@
 
-![genlm_repo_logos 003](https://github.com/user-attachments/assets/3efcaed4-8ca5-4dea-a774-296bc8db64c8)
+![Logo](logo.png)
 
 
-[![Docs](https://github.com/genlm/genlm-grammar/actions/workflows/docs.yml/badge.svg)](https://genlm.github.io/genlm-grammar/)
-[![Tests](https://github.com/genlm/genlm-grammar/actions/workflows/pytest.yml/badge.svg)](https://genlm.github.io/genlm-grammar/actions/workflows/pytest.yml)
-[![codecov](https://codecov.io/github/genlm/genlm-grammar/graph/badge.svg?token=rBj8AYdpe4)](https://codecov.io/github/genlm/genlm-grammar)
+<p align="center">
+  
+  <a href="https://genlm.github.io/genlm-grammar/">
+    <img src="https://github.com/genlm/genlm-grammar/actions/workflows/docs.yml/badge.svg" alt="Docs">
+  </a>
+  
+  <a href="https://genlm.github.io/genlm-grammar/actions/workflows/pytest.yml">
+    <img src="https://github.com/genlm/genlm-grammar/actions/workflows/pytest.yml/badge.svg" alt="Tests">
+  </a>
+  
+  <a href="https://codecov.io/github/genlm/genlm-grammar">
+    <img src="https://codecov.io/github/genlm/genlm-grammar/graph/badge.svg?token=rBj8AYdpe4" alt="codecov">
+  </a>
+  
+  <a href="https://pypi.org/project/genlm-grammar/">
+    <img src="https://img.shields.io/pypi/v/genlm-grammar.svg" alt="PyPI">
+  </a>
+  
+</p>
+
 
 A Python library for working with weighted context-free grammars (WCFGs), weighted finite state automata (WFSAs) and weighted finite state transducers (WFSTs). The library provides efficient implementations for grammar operations, parsing algorithms, and language model functionality.
 
