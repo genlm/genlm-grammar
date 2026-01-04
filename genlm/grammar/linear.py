@@ -44,7 +44,7 @@ class WeightedGraph:
         C = WeightedGraph(self.WeightType)
         K = self.closure_scc_based()
         for i, j in K:
-            C[i, j] += K[i, j]
+            C[i, j] = C[i, j] + K[i, j]
         return C
 
     def closure_reference(self):
@@ -70,13 +70,13 @@ class WeightedGraph:
             # each entry j in the block
             enter = self.WeightType.chart()
             for j in block:
-                enter[j] += b[j]
+                enter[j] = enter[j] + b[j]
                 for i in self.incoming[j]:
-                    enter[j] += sol[i] * self.E[i, j]
+                    enter[j] = enter[j] + sol[i] * self.E[i, j]
 
             # Now, compute the total weight of completing the block
             for j, k in B:
-                sol[k] += enter[j] * B[j, k]
+                sol[k] = sol[k] + enter[j] * B[j, k]
 
         return sol
 
@@ -90,19 +90,20 @@ class WeightedGraph:
             # each entry point j in the block
             enter = self.WeightType.chart()
             for j in block:
-                enter[j] += b[j]
+                enter[j] = enter[j] + b[j]
                 for k in self.outgoing[j]:
-                    enter[j] += self.E[j, k] * sol[k]
+                    enter[j] = enter[j] + self.E[j, k] * sol[k]
 
             # Now, compute the total weight of completing the block
             for i, j in B:
-                sol[i] += B[i, j] * enter[j]
+                sol[i] = sol[i] + B[i, j] * enter[j]
 
         return sol
 
-    def _closure(self, A, N):
+    def _closure(self, A, N): # This is an implementation of Lehmann's algorithm (1977).
         """
         Compute the reflexive, transitive closure of `A` for the block of nodes `N`.
+        Lehmann's algorithm (1977).
         """
 
         # Special handling for the common case of |N| = 1; XXX: I'm surprised
@@ -124,7 +125,7 @@ class WeightedGraph:
             old, new = new, old
         # reflexive closure
         for i in N:
-            old[i, i] += self.WeightType.one
+            old[i, i] = old[i, i] + self.WeightType.one
         return old
 
     @cached_property

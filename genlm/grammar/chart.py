@@ -270,3 +270,70 @@ class Chart(dict):
             m = self.semiring.metric(self[x], other[x])
             rows.append(dict(key=x, self=self[x], other=other[x], metric=m))
         return pd.DataFrame(rows)
+
+
+class GradChart(Chart):
+    """
+    This is a version of Chart that supports gradient operations.
+    """
+
+    def spawn(self):
+        """Create a new empty Chart with the same semiring."""
+        return GradChart(self.semiring)
+
+    def __add__(self, other):
+        """Add two charts element-wise.
+
+        Args:
+            other: Another Chart to add to this one
+
+        Returns:
+            A new Chart containing the element-wise sum
+        """
+        new = self.spawn()
+        for k, v in self.items():
+            new[k] = new.get(k,self.semiring.zero) + v
+        for k, v in other.items():
+            new[k] = new.get(k,self.semiring.zero) + v
+        return new
+
+    def __mul__(self, other):
+        """Multiply two charts element-wise.
+
+        Args:
+            other: Another Chart to multiply with this one
+
+        Returns:
+            A new Chart containing the element-wise product
+        """
+        new = self.spawn()
+        for k in self:
+            v = self[k] * other[k]
+            new[k] = new.get(k,self.semiring.zero) + v
+        return new
+
+    def product(self, ks):
+        """Compute the product of values for the given keys.
+
+        Args:
+            ks: Sequence of keys to multiply values for
+
+        Returns:
+            The product of values for the given keys
+        """
+        v = self.semiring.one
+        for k in ks:
+            v = v * self[k]
+        return v
+
+    def copy(self):
+        """Create a shallow copy of this Chart."""
+        return GradChart(self.semiring, self)
+
+    def argmax(self):
+        """Return the key with maximum value."""
+        return max(self, key=lambda k: self[k].score)
+
+    def argmin(self):
+        """Return the key with minimum value."""
+        return min(self, key=lambda k: self[k].score)

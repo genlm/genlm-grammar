@@ -133,7 +133,7 @@ def test_char_lm_basics2():
         """
     )
     cfg_t = lark_stuff.char_cfg()
-    pg = cfg_t.cnf.prefix_grammar.cnf.trim()
+    pg = cfg_t.prefix_grammar.cnf.trim()
     pg.materialize(3).assert_equal(
         {
             (): 1,
@@ -153,6 +153,7 @@ def test_char_lm_basics2():
             ("b", "b", "b"): 0.055555,
         },
         tol=1e-4,
+        verbose=True,
     )
 
 

@@ -6,7 +6,8 @@ from genlm.grammar import add_EOS, EOS, CFG
 from genlm.grammar.parse.earley import Earley
 from genlm.grammar.parse.earley import EarleyLM
 from genlm.grammar.parse.cky import CKYLM, IncrementalCKY
-from genlm.grammar.semiring import Float, MaxTimes
+from genlm.grammar.semiring import Float, MaxTimes, GradReal
+import pdb
 
 
 def test_cycles():
@@ -376,12 +377,26 @@ def test_p_next_palindrome():
         print()
         print(colors.light.blue % prefix)
         want = ckylm.p_next(prefix)
-        print(want)
         have = earley.p_next(prefix)
-        print(have)
+        err = have.metric(want)
+        assert err <= 1e-5, f"failing prefix {prefix,len(prefix)}"
+
+def test_p_next_palindrome_binarized():
+    cfg = examples.palindrome_binarized
+
+    ckylm = CKYLM(cfg)
+    earley = EarleyLM(cfg)
+
+    for prefix in ["", "a", "ab"]:
+        print()
+        print(colors.light.blue % prefix)
+        want = ckylm.p_next(prefix)
+        print(f"Want :{want}")
+        have = earley.p_next(prefix)
+        print(f"Have :{have}")
         err = have.metric(want)
         print(colors.mark(err <= 1e-5))
-        assert err <= 1e-5
+        assert err <= 1e-5, f"failing prefix {prefix,len(prefix)}"
 
 
 def test_p_next_papa():
@@ -446,6 +461,35 @@ def test_mystery():
         err = have.metric(want)
         print(colors.mark(err <= 1e-5))
         assert err <= 1e-5, err
+
+### Test Earley with the GradReal semiring.
+
+def test_palindrome():
+    cfg = CFG.from_string(
+        """
+        0.3: S -> a S a
+        0.4: S -> b S b
+        0.3: S -> a b
+        """,
+        GradReal,
+    )
+
+    earley = Earley(cfg)
+
+    x = ""
+    want = cfg(x)
+    have = earley(x)
+    assert cfg.R.metric(have, want) <= 1e-10
+
+    x = "aabbaa"
+    want = cfg(x)
+    have = earley(x)
+    assert cfg.R.metric(have, want) <= 1e-10
+
+    x = "aabba"
+    want = cfg(x)
+    have = earley(x)
+    assert have == want == GradReal(0.0)
 
 
 if __name__ == "__main__":

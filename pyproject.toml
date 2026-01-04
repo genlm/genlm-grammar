@@ -13,10 +13,13 @@ dependencies = [
     "lark",
     "nltk",
     "numpy",
-    "arsenal",
+    "arsenal @ git+https://github.com/timvieira/arsenal.git@master",
     "IPython",
     "graphviz",
     "pandas",
+    "matplotlib",
+    "scipy",
+    "torch",
 ]
 
 [project.optional-dependencies]

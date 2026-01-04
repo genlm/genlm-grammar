@@ -35,7 +35,7 @@ class CKYLM(LM):
         if EOS not in cfg.V:
             cfg = add_EOS(cfg)
         self.cfg = cfg
-        self.pfg = self.cfg.cnf.prefix_grammar.cnf
+        self.pfg = self.cfg.binarize().prefix_grammar.cnf
         self.model = IncrementalCKY(self.pfg, **kwargs)
         super().__init__(V=cfg.V, eos=EOS)
 
@@ -179,7 +179,7 @@ class IncrementalCKY:
 
         # the code below is just backprop / outside algorithm
         α = defaultdict(cfg.R.chart)
-        α[0][cfg.S] += cfg.R.one
+        α[0][cfg.S] = α[0][cfg.S] + cfg.R.one
 
         # Binary rules
         for span in reversed(range(2, k + 1)):
@@ -193,14 +193,14 @@ class IncrementalCKY:
                     for r in r_y_xz[Y]:
                         X = r.head
                         Z = r.body[1]
-                        α_j[Z] += r.w * y * α_i[X]
+                        α_j[Z] = α_j[Z] + r.w * y * α_i[X]
 
         # Preterminal
         q = cfg.R.chart()
         tmp = α[k - 1]
         for w in cfg.V:
             for r in terminal[w]:
-                q[w] += r.w * tmp[r.head]
+                q[w] = q[w] + r.w * tmp[r.head]
 
         return q
 
@@ -223,12 +223,12 @@ class IncrementalCKY:
         new = defaultdict(cfg.R.chart)
 
         # Nullary
-        new[k][cfg.S] += self.nullary
+        new[k][cfg.S] = new[k][cfg.S] + self.nullary
 
         # Preterminal
         tmp = new[k - 1]
         for r in self.terminal[prefix[k - 1]]:
-            tmp[r.head] += r.w
+            tmp[r.head] = tmp[r.head] + r.w
 
         # Binary rules
         for span in range(2, k + 1):
@@ -243,6 +243,6 @@ class IncrementalCKY:
                         Z = r.body[1]
                         z = new_j[Z]
                         x = r.w * y * z
-                        new_i[X] += x
+                        new_i[X] = new_i[X] + x
 
         return new

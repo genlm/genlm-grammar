@@ -51,6 +51,17 @@ palindrome_ab = CFG.from_string(
     """
     0.3: S -> a S a
     0.4: S -> b S b
+    0.3: S -> a b
+    """,
+    Float,
+)
+
+palindrome_binarized = CFG.from_string(
+    """
+    0.3: S -> A a
+    1: A -> a S
+    0.4: S -> B b
+    1: B -> b S
     0.3: S ->
     """,
     Float,
@@ -78,6 +89,20 @@ papa = CFG.from_string(
     0.5: N -> caviar
     0.5: N -> spoon
 
+    """,
+    Float,
+)
+
+double_blocks = CFG.from_string(
+    """
+    0.4: S → S A
+    0.6: S → A
+    0.5 : A → S B 
+    0.5 : A → 
+
+    0.7 : B → C b
+    1 : C → B c
+    0.3 : B → d
     """,
     Float,
 )

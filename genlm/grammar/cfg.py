@@ -11,6 +11,9 @@ from genlm.grammar.fst import FST
 from genlm.grammar.wfsa import EPSILON
 from genlm.grammar.linear import WeightedGraph
 from genlm.grammar.semiring import Boolean, Expectation, Float
+from genlm.grammar.chart import Chart
+from genlm.grammar.semiring import GradReal
+import pdb
 
 
 def _gen_nt(prefix=""):
@@ -22,8 +25,19 @@ def _gen_nt(prefix=""):
     Returns:
         str: A unique nonterminal symbol name with format '{prefix}@{counter}'
     """
-    _gen_nt.i += 1
+    _gen_nt.i = _gen_nt.i + 1
     return f"{prefix}@{_gen_nt.i}"
+
+def _arrow_nt(X):
+    """Generate a novel "arrow" nonterminal symbol name.
+
+    Args:
+        X (str): Input Nonterminal
+
+    Returns:
+        str: An arrow nonterminal symbol name with format X^
+    """
+    return f"{X}^"
 
 
 _gen_nt.i = 0
@@ -117,7 +131,7 @@ class Derivation:
         W = self.r.w
         for y in self.ys:
             if isinstance(y, Derivation):
-                W *= y.weight()
+                W = W * y.weight()
         return W
 
     def Yield(self):
@@ -264,11 +278,11 @@ class CFG:
         # nullary rule
         c = self.R.chart()
         for i in range(N + 1):
-            c[i, self.S, i] += nullary
+            c[i, self.S, i] = c[i, self.S, i] + nullary
         # preterminal rules
         for i in range(N):
             for r in terminal[xs[i]]:
-                c[i, r.head, i + 1] += r.w
+                c[i, r.head, i + 1] = c[i, r.head, i + 1] + r.w
         # binary rules
         for span in range(2, N + 1):
             for i in range(N - span + 1):
@@ -276,7 +290,7 @@ class CFG:
                 for j in range(i + 1, k):
                     for r in binary:
                         X, [Y, Z] = r.head, r.body
-                        c[i, X, k] += r.w * c[i, Y, j] * c[j, Z, k]
+                        c[i, X, k] = c[i, X, k] + r.w * c[i, Y, j] * c[j, Z, k]
         return c
 
     def language(self, depth):
@@ -291,7 +305,7 @@ class CFG:
         """
         lang = self.R.chart()
         for d in self.derivations(self.S, depth):
-            lang[d.Yield()] += d.weight()
+            lang[d.Yield()] = lang[d.Yield()] + d.weight()
         return lang
 
     @cached_property
@@ -305,6 +319,19 @@ class CFG:
         rhs = defaultdict(list)
         for r in self:
             rhs[r.head].append(r)
+        return rhs
+
+    @cached_property
+    def get_rule(self):
+        """
+        Maps a given head and body to the set of rules with that head and that body.
+
+        Returns:
+            A dict mapping (head, body) tuples to lists of rules.
+        """
+        rhs = defaultdict(list)
+        for r in self:
+            rhs[(r.head,r.body)].append(r)
         return rhs
 
     def is_terminal(self, x):
@@ -611,7 +638,25 @@ class CFG:
         A = WeightedGraph(self.R)
         for r in self:
             if len(r.body) == 1 and self.is_nonterminal(r.body[0]):
-                A[r.head, r.body[0]] += r.w
+                A[r.head, r.body[0]] = A[r.head, r.body[0]] + r.w
+        A.N |= self.N
+        return A
+
+    def null_unary_graph(self):
+        """
+        Compute the matrix closure of nullary unary chains.
+        It can be used to compute more efficiently the nullary closure, 
+        when a nonterminal can only yield epsilon through a unary chain. 
+
+        Returns:
+            A WeightedGraph representing unary rule closure
+        """
+        A = WeightedGraph(self.R)
+        for r in self:
+            if len(r.body) == 1 and self.is_nonterminal(r.body[0]):
+                A[r.head, r.body[0]] = A[r.head, r.body[0]] + r.w
+            elif len(r.body) == 0:
+                A[r.head, EPSILON] = A[r.head, EPSILON] + r.w
         A.N |= self.N
         return A
 
@@ -625,7 +670,7 @@ class CFG:
         A = WeightedGraph(self.R)
         for r in self:
             if len(r.body) == 1 and self.is_nonterminal(r.body[0]):
-                A[r.body[0], r.head] += r.w
+                A[r.body[0], r.head] = A[r.body[0], r.head] + r.w
         A.N |= self.N
         return A
 
@@ -723,11 +768,38 @@ class CFG:
         """
         # A really wide rule can take a very long time because of the power set
         # in this rule so it is really important to binarize.
+        self = self.separate_start()
         if binarize:
             self = self.binarize()  # pragma: no cover
-        self = self.separate_start()
         tmp = self._push_null_weights(self.null_weight(), **kwargs)
         return tmp.trim() if trim else tmp
+
+    def nullaryremove_special(self):
+        """
+        This is a fast nullaryremove method, that works only for grammars where nullary 
+        derivations have the form of a unary chain:
+        1) A-> ε
+        2) A-> B -> .... -> C-> ε
+
+        Args: The grammar to nullaryremove (needs to be in the above form)
+
+        Returns:
+        A nullary removed grammar generating the same language of teh grammar above.
+        """
+
+        nullary_closure = self.null_unary_graph().closure()
+
+        for rule in self:
+            if len(rule.body) > 1:
+                assert not all( y in nullary_closure.incoming[EPSILON] for y in rule.body), "This methid is not designed for grammars where nullary derivations are not unary chains."
+        
+        null_weights = self.R.chart()
+        for item in nullary_closure.N:
+            if nullary_closure[item,EPSILON]!= nullary_closure.WeightType.zero and item!=EPSILON:
+                null_weights[item] = nullary_closure[item,EPSILON]
+
+        return self._push_null_weights(null_weights)
+
 
     def null_weight(self):
         """
@@ -783,14 +855,14 @@ class CFG:
             if len(r.body) == 0:
                 continue  # drop nullary rule
 
-            for B in product([0, 1], repeat=len(r.body)):
+            for B in product([0, 1], repeat=len(r.body)): # Compute all the possible combinations of the right hand side.
                 v, new_body = r.w, []
 
                 for i, b in enumerate(B):
                     if b:
-                        v *= null_weight[r.body[i]]
+                        v = v * null_weight[r.body[i]] # Attach the null weight of the symbol
                     else:
-                        new_body.append(f(r.body[i]))
+                        new_body.append(f(r.body[i])) # Else keep it and tag it as not-null
 
                 # exclude the cases that would be new nullary rules!
                 if len(new_body) > 0:
@@ -798,6 +870,7 @@ class CFG:
 
         return rcfg
 
+   
     def separate_start(self):
         """
         Ensure that the start symbol does not appear on the RHS of any rule.
@@ -867,7 +940,7 @@ class CFG:
                 new.add(p.w, p.head, *p.body)
             else:
                 stack.extend(self._fold(p, [(0, 1)]))
-
+        assert new.S == self.S, " unmatching start symbols"
         return new
 
     def _fold(self, p, I):
@@ -893,9 +966,9 @@ class CFG:
         body = tuple()
         start = 0
         for (end, n), head in zip(I, heads):
-            body += p.body[start:end] + (head,)
+            body = body + p.body[start:end] + (head,)
             start = n + 1
-        body += p.body[start:]
+        body = body + p.body[start:]
         P.append(Rule(p.w, p.head, body))
 
         return P
@@ -934,7 +1007,7 @@ class CFG:
         binary = []
         for r in self:
             if len(r.body) == 0:
-                nullary += r.w
+                nullary = nullary + r.w
                 assert r.head == self.S, [self.S, r]
             elif len(r.body) == 1:
                 terminal[r.body[0]].append(r)
@@ -953,6 +1026,8 @@ class CFG:
         Returns:
             True if grammar is in Chomsky Normal Form
         """
+        # invalid_rules = list(self._find_invalid_cnf_rule())
+        # pdb.set_trace() 
         return len(list(self._find_invalid_cnf_rule())) == 0
 
     def _find_invalid_cnf_rule(self):
@@ -975,8 +1050,8 @@ class CFG:
             else:
                 yield r
 
-    #    def has_nullary(self):
-    #        return any((len(p.body) == 0) for p in self if p.head != self.S)
+    def has_nullary(self):
+        return any((len(p.body) == 0) for p in self if p.head != self.S)
 
     def unfold(self, i, k):
         """
@@ -1013,7 +1088,7 @@ class CFG:
         deps = WeightedGraph(Boolean)
         for r in self:
             for y in r.body:
-                deps[r.head, y] += Boolean.one
+                deps[r.head, y] = deps[r.head, y] + Boolean.one
         deps.N |= self.N
         deps.N |= self.V
         return deps
@@ -1045,7 +1120,7 @@ class CFG:
 
         # helper function
         def update(x, W):
-            change[bucket[x]][x] += W
+            change[bucket[x]][x] = change[bucket[x]][x] + W
 
         change = defaultdict(self.R.chart)
         for a in self.V:
@@ -1078,13 +1153,13 @@ class CFG:
                 for j in range(len(r.body)):
                     if u == r.body[j]:
                         if j < k:
-                            W *= new
+                            W = W * new
                         elif j == k:
-                            W *= v
+                            W = W * v
                         else:
-                            W *= old[u]
+                            W = W * old[u]
                     else:
-                        W *= old[r.body[j]]
+                        W = W * old[r.body[j]]
 
                 update(r.head, W)
 
@@ -1119,19 +1194,67 @@ class CFG:
             update = p.w
             for X in p.body:
                 if self.is_nonterminal(X):
-                    update *= V[X]
-            U[p.head] += update
+                    update = update * V[X]
+            U[p.head] = U[p.head] + update
         return U
 
     def prefix_weight(self, xs):
         "Total weight of all derivations that have `xs` as a prefix."
         return self.prefix_grammar(xs)
 
+    # @cached_property
+    # def prefix_grammar(self):
+    #     "Grammar that generates prefixing of this grammar's language."
+    #     return self @ prefix_transducer(self.R, self.V)
+
     @cached_property
     def prefix_grammar(self):
-        "Grammar that generates prefixing of this grammar's language."
-        return self @ prefix_transducer(self.R, self.V)
+        pg = self.spawn()
+        W = self.agenda()
+        
+        pg.S = _gen_nt(self.S)
+        pg.add(self.R.one, pg.S, _arrow_nt(self.S)) # Attach start symbol to arrow nonterminal
+        pg.add(W[self.S], pg.S,) # The prefix weight of the empty string
+        
+        for r in self:
+            pg.add(r.w, r.head, *r.body)
+            w = self.R.one
+            for i in range(len(r.body)-1,-1,-1): # Add the prefixed rules, with the "arrow" non-terminals on the right.
+                w = w * W[r.body[i]]
+                if self.is_terminal(r.body[i]): # For a terminal, a^ := a
+                    pg.add(r.w * w, _arrow_nt(r.head), *r.body[:i], r.body[i])
+                else: # Otherwise, the arrow is transmitted downwards on the right spine of the derivation.
+                    pg.add(r.w * w, _arrow_nt(r.head), *r.body[:i], _arrow_nt(r.body[i]))
+        return pg
 
+
+    
+    @cached_property
+    def batch_grammar(self):
+        """
+        
+        Returns:
+            A batch grammar evaluated at theta=1.
+        """
+        pg = self.spawn()
+        W = self.agenda()
+        
+        pg.S = _gen_nt(self.S)
+        pg.add(self.R.one, pg.S, _arrow_nt(self.S)) # Attach start symbol to arrow nonterminal
+        pg.add(W[self.S], pg.S,) # The prefix weight of the empty string
+        
+        for r in self:
+            pg.add(r.w, r.head, *r.body)
+            w = self.R.one
+            for i in range(len(r.body)-1,-1,-1): # Add the prefixed rules, with the "arrow" non-terminals on the right.
+                w = w * W[r.body[i]]
+                pg.add(r.w * w, _arrow_nt(r.head), *r.body[:i], _arrow_nt(r.body[i]))
+        
+        for a in self.V: # Add the terminal rules with the parameterized weight.
+            pg.add(self.R.one, _arrow_nt(a),)
+        return pg
+
+       
     def derivatives(self, s):
         "Return the sequence of derivatives for each prefix of `s`."
         M = len(s)
@@ -1166,7 +1289,7 @@ class CFG:
                         slash(r.body[k], a),
                         *r.body[k + 1 :],
                     )
-                delta *= U[y]
+                delta = delta * U[y]
         return D
 
     def _compose_bottom_up_epsilon(self, fst):
@@ -1343,6 +1466,12 @@ class CFG:
             new.add(r.w, r.head, *new_body)
 
         return new
+
+    def enable_grad(self):
+        assert self.R == GradReal, "The semiring must be a GradReal"
+        for rule in self:
+            rule.w.enable_grad()
+        return self
 
 
 def prefix_transducer(R, V):

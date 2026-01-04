@@ -100,6 +100,12 @@ def test_agenda_misc():
     g.agenda(maxiter=2).assert_equal({"a": 1, "S": 1.5})
     g.agenda(maxiter=3).assert_equal({"a": 1, "S": 1.75})
 
+def test_agenda_blocks():
+    from examples import double_blocks
+    have = double_blocks.agenda()
+   
+    for x in have.keys():
+        assert abs(have[x] - 1) < 1e-10
 
 def test_semirings():
     p = Entropy.from_string("1")
@@ -325,20 +331,19 @@ def test_trim():
     have.assert_equal(want)
 
 
-def test_cnf():
+def test_cnf(): # Note this method tests that teh grammar have the same treesum, not that they define teh same weights language
     cfg = CFG.from_string(
         """
+        0.5: S → S1
 
-        1: S → S1
-
-        1: S → A B C d
+        0.5: S → S B S1 A
 
         0.5: S1 → S1
 
-        0.1: S1 →
-        0.1: A →
+        0.5: S1 → a
+        0.5: A → a
 
-        1: A → a
+        0.5: A → a
         1: B → d
         1: C → c
 
@@ -353,6 +358,13 @@ def test_cnf():
     assert cnf.in_cnf()
 
     assert_equal(have=cnf.treesum(), want=cfg.treesum(), tol=1e-10)
+
+
+# def test_cnf_language():
+#     from examples import palindrome_ab
+#     cnf = palindrome_ab.cnf
+
+#     assert cnf.language(3) == palindrome_ab.language(3)
 
 
 def test_grammar_size_metrics():

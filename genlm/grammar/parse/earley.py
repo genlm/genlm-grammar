@@ -10,6 +10,7 @@ from genlm.grammar.lm import LM
 from genlm.grammar.semiring import Float
 from genlm.grammar.cfg import CFG
 
+_sum = lambda x, R : x[0] + _sum(x[1:]) if len(x) > 0 else R.zero
 
 class EarleyLM(LM):
     def __init__(self, cfg):
@@ -134,7 +135,7 @@ class Earley:
 
         # return if empty string
         if N == 0:
-            return sum(r.w for r in self.cfg.rhs[self.cfg.S] if r.body == ())
+            return _sum([r.w for r in self.cfg.rhs[self.cfg.S] if r.body == ()], self.cfg.R)
 
         # initialize bookkeeping structures
         self._chart[()] = [self._initial_column]
@@ -297,7 +298,7 @@ class Earley:
                     if self.unit_Ys[Ys]:
                         node = (I, X)
                         value = self._helper(node, cols, q)
-                        total += col_i_chart[I, X, Ys] * value
+                        total = total + col_i_chart[I, X, Ys] * value
                 p[Y] = total
 
         return p
@@ -338,7 +339,7 @@ class Earley:
                     # neighbor value is ready, advance the cursor, add the
                     # neighbors contribution to the nodes value
                     node.cursor += 1
-                    node.value += cols[J].i_chart[arc] * neighbor_value
+                    node.value = node.value + cols[J].i_chart[arc] * neighbor_value
 
         return q[top]
 
