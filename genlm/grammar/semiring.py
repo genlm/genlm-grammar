@@ -175,8 +175,12 @@ MaxTimes.one = MaxTimes(1)
 
 
 class Float:
-    def star(self): # This should also contain the 1* = inf, inf*=inf. 
-        return 1 / (1 - self)
+    @staticmethod
+    def star(x): # This should also contain the 1* = inf, inf*=inf. 
+        return 1 / (1 - x)
+    
+    def __new__(cls, x):
+        return float(x)
 
     @classmethod
     def from_string(cls, x):
@@ -284,8 +288,16 @@ class GradReal(Semiring):
         return f"{self.score.item()}"
 
     def metric(self, other): 
-        return (self.score - other.score).abs().item()   
+        return (self.score - other.score).abs().item()
 
+    @classmethod
+    def from_real(cls, x):
+        if isinstance(x, Real):
+            return GradReal(x.score)
+        elif isinstance(x, float) or isinstance(x, int):
+            return GradReal(float(x))
+        else:
+            raise ValueError(f"x must be a Real or a float, got {type(x)}")
 
     @classmethod
     def chart(self, *args, **kwargs):

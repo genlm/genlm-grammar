@@ -7,6 +7,7 @@ from genlm.grammar.wfsa import EPSILON
 from itertools import product 
 
 
+
 def test_gradient():
     grammar_string = """
     0.9: S → A B C
@@ -16,7 +17,7 @@ def test_gradient():
     0.3: C →
     """
     
-    eps = 1e-7
+    eps = 1e-6
     
     # Gradient with Pytorch.
     cfg = CFG.from_string(grammar_string, GradReal)
@@ -31,12 +32,20 @@ def test_gradient():
         cfg_plus = CFG.from_string(grammar_string, GradReal)
         cfg_plus.rules[i].w.score += eps # Add +eps to all the weight rules.
         f_plus = cfg_plus.nullaryremove().treesum().score.item()
+
+        cfg_plus_plus = CFG.from_string(grammar_string, GradReal)
+        cfg_plus_plus.rules[i].w.score += 2*eps # Add +2*eps to all the weight rules.
+        f_plus_plus = cfg_plus_plus.nullaryremove().treesum().score.item()
         
         cfg_minus = CFG.from_string(grammar_string, GradReal)
         cfg_minus.rules[i].w.score -= eps # Add -eps to all the weight rules.
         f_minus = cfg_minus.nullaryremove().treesum().score.item()
+
+        cfg_minus_minus = CFG.from_string(grammar_string, GradReal)
+        cfg_minus_minus.rules[i].w.score -= 2*eps # Add -2*eps to all the weight rules.
+        f_minus_minus = cfg_minus_minus.nullaryremove().treesum().score.item()
         
-        numerical[i] = (f_plus - f_minus) / (2 * eps) # Compuet the finite difference approximation of the gradient.
+        numerical[i] = (-f_plus_plus + 8*f_plus -8*f_minus + f_minus_minus) / (12 * eps) # Compute the second order approximate differerence of the gradient.
     
     # Compare
     for i, r in enumerate(cfg.rules):

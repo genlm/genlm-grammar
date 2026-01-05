@@ -10,7 +10,7 @@ from arsenal import Integerizer, colors
 from genlm.grammar.fst import FST
 from genlm.grammar.wfsa import EPSILON
 from genlm.grammar.linear import WeightedGraph
-from genlm.grammar.semiring import Boolean, Expectation, Float
+from genlm.grammar.semiring import Boolean, Expectation, Float, Real
 from genlm.grammar.chart import Chart
 from genlm.grammar.semiring import GradReal
 import pdb
@@ -28,26 +28,64 @@ def _gen_nt(prefix=""):
     _gen_nt.i = _gen_nt.i + 1
     return f"{prefix}@{_gen_nt.i}"
 
-def _arrow_nt(X):
-    """Generate a novel "arrow" nonterminal symbol name.
-
-    Args:
-        X (str): Input Nonterminal
-
-    Returns:
-        str: An arrow nonterminal symbol name with format X^
+class _arrow_nt:
     """
-    return f"{X}^"
+    Generate a novel "arrow" nonterminal symbol name. which is used for teh prefix grammar.
+    """
+    def __init__(self, X):
+        self.X = X
+    
+    def __repr__(self):
+        return f"{self.X}^"
 
+    def __hash__(self):
+        return hash((self.X,))
+
+    def __eq__(self, other):
+        return isinstance(other, _arrow_nt) and self.X == other.X
+
+class Other:
+    def __init__(self, X):
+        self.X = X
+    
+    def __repr__(self):
+        return f"{self.X}"
+    
+    def __hash__(self):
+        return hash((self.X,))
+    
+    def __eq__(self, other):
+        return isinstance(other, Other) and self.X == other.X
+
+class Slash:
+    def __init__(self, Y, Z, i):
+        self.Y = Y
+        self.Z = Z
+        self.i = i
+    
+    def __repr__(self):
+        return f"{self.Y}/{self.Z}@{self.i}"
+
+    def __hash__(self) -> int:
+        return hash((self.Y,self.Z,self.i))
+
+    def __eq__(self, other):
+        return isinstance(other, Slash) and self.Y == other.Y and self.Z == other.Z and self.i == other.i
+
+class NotNull:
+    def __init__(self, X):
+        self.X = X
+    
+    def __repr__(self):
+        return f"{self.X}"
+    
+    def __hash__(self):
+        return hash((self.X,))
+    
+    def __eq__(self, other):
+        return isinstance(other, NotNull) and self.X == other.X
 
 _gen_nt.i = 0
-
-Other = namedtuple("Other", "x")
-
-NotNull = namedtuple("NotNull", "x")
-
-Slash = namedtuple("Slash", "Y, Z, i")
-
 
 class Rule:
     """A weighted production rule in a context-free grammar.
@@ -1202,10 +1240,20 @@ class CFG:
         "Total weight of all derivations that have `xs` as a prefix."
         return self.prefix_grammar(xs)
 
-    # @cached_property
-    # def prefix_grammar(self):
-    #     "Grammar that generates prefixing of this grammar's language."
-    #     return self @ prefix_transducer(self.R, self.V)
+    def next_token(self,xs):
+        """Next token computations using the batch grammar"""
+        assert self.R ==Real or self.R == Float, "The semiring must be Real or Float"
+        output= self.R.chart()
+
+        batch_grammar = self.binarize().batch_grammar.make_gradient_cfg() # set the batch grammar
+        batch_grammar.enable_grad()
+        batch_grammar(xs).backward() # parse and coempute teh gradient
+        for rule in batch_grammar:
+            if isinstance(rule.head, _arrow_nt):
+                grad = rule.w.grad_item()
+                output[rule.head.X] = output[rule.head.X] + (self.R(grad) if grad is not None else self.R.zero)
+        return output
+
 
     @cached_property
     def prefix_grammar(self):
@@ -1473,6 +1521,12 @@ class CFG:
             rule.w.enable_grad()
         return self
 
+    def make_gradient_cfg(self):
+        assert self.R == Float or Real, "To turn the grammar into gradient mode, the semiring must be Float or Real"
+        new = self.spawn(R=GradReal)
+        for rule in self:
+            new.add(GradReal.from_real(rule.w), rule.head, *rule.body)
+        return new
 
 def prefix_transducer(R, V):
     "Construct the prefix transducer over semiring `R` and alphabet `V`."
