@@ -331,6 +331,13 @@ def test_trim():
     have.assert_equal(want)
 
 
+def test_nullaryremove():
+    from examples import palindrome_ab
+    cfg = palindrome_ab
+    have = cfg.nullaryremove().treesum()
+    want = cfg.treesum()
+    assert abs(have - want) < 1e-10, f"have: {have}, want: {want}"
+
 def test_cnf(): # Note this method tests that teh grammar have the same treesum, not that they define teh same weights language
     cfg = CFG.from_string(
         """

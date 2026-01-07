@@ -51,7 +51,7 @@ palindrome_ab = CFG.from_string(
     """
     0.3: S -> a S a
     0.4: S -> b S b
-    0.3: S -> a b
+    0.3: S -> 
     """,
     Float,
 )

@@ -806,9 +806,9 @@ class CFG:
         """
         # A really wide rule can take a very long time because of the power set
         # in this rule so it is really important to binarize.
-        self = self.separate_start()
         if binarize:
             self = self.binarize()  # pragma: no cover
+        self = self.separate_start()
         tmp = self._push_null_weights(self.null_weight(), **kwargs)
         return tmp.trim() if trim else tmp
 
@@ -1246,8 +1246,8 @@ class CFG:
         output= self.R.chart()
 
         batch_grammar = self.binarize().batch_grammar.make_gradient_cfg() # set the batch grammar
-        batch_grammar.enable_grad()
-        batch_grammar(xs).backward() # parse and coempute teh gradient
+        batch_grammar.enable_grad(filter=lambda rule: isinstance(rule.head, _arrow_nt))
+        batch_grammar(xs).backward() # parse and compute the gradient
         for rule in batch_grammar:
             if isinstance(rule.head, _arrow_nt):
                 grad = rule.w.grad_item()
@@ -1260,19 +1260,21 @@ class CFG:
         pg = self.spawn()
         W = self.agenda()
         
+
         pg.S = _gen_nt(self.S)
         pg.add(self.R.one, pg.S, _arrow_nt(self.S)) # Attach start symbol to arrow nonterminal
+        # print(f" add weight {W[self.S]}, to start symbol {pg.S}-->ε")
         pg.add(W[self.S], pg.S,) # The prefix weight of the empty string
         
         for r in self:
             pg.add(r.w, r.head, *r.body)
             w = self.R.one
             for i in range(len(r.body)-1,-1,-1): # Add the prefixed rules, with the "arrow" non-terminals on the right.
-                w = w * W[r.body[i]]
                 if self.is_terminal(r.body[i]): # For a terminal, a^ := a
                     pg.add(r.w * w, _arrow_nt(r.head), *r.body[:i], r.body[i])
                 else: # Otherwise, the arrow is transmitted downwards on the right spine of the derivation.
                     pg.add(r.w * w, _arrow_nt(r.head), *r.body[:i], _arrow_nt(r.body[i]))
+                w = w * W[r.body[i]] 
         return pg
 
 
@@ -1295,8 +1297,8 @@ class CFG:
             pg.add(r.w, r.head, *r.body)
             w = self.R.one
             for i in range(len(r.body)-1,-1,-1): # Add the prefixed rules, with the "arrow" non-terminals on the right.
-                w = w * W[r.body[i]]
                 pg.add(r.w * w, _arrow_nt(r.head), *r.body[:i], _arrow_nt(r.body[i]))
+                w = w * W[r.body[i]]
         
         for a in self.V: # Add the terminal rules with the parameterized weight.
             pg.add(self.R.one, _arrow_nt(a),)
@@ -1515,10 +1517,13 @@ class CFG:
 
         return new
 
-    def enable_grad(self):
+    def enable_grad(self, filter = None):
         assert self.R == GradReal, "The semiring must be a GradReal"
+        if filter is None:
+            filter = lambda rule: True
         for rule in self:
-            rule.w.enable_grad()
+            if filter(rule):
+                rule.w.enable_grad()
         return self
 
     def make_gradient_cfg(self):
