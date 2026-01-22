@@ -10,7 +10,7 @@ from genlm.grammar.lm import LM
 from genlm.grammar.semiring import Float
 from genlm.grammar.cfg import CFG
 
-_sum = lambda x, R : x[0] + _sum(x[1:]) if len(x) > 0 else R.zero
+_sum = lambda x, R : x[0] + _sum(x[1:], R) if len(x) > 0 else R.zero
 
 class EarleyLM(LM):
     def __init__(self, cfg):
