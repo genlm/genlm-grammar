@@ -33,24 +33,35 @@ class _arrow_nt:
     Generate a novel "arrow" nonterminal symbol name, which is used for the prefix grammar.
     """
 
-    __slots__ = ("X",)
+    _counter = 0
+    __slots__ = ("X", "id")
 
-    def __init__(self, X):
+    def __init__(self, X, id):
         self.X = X
+        self.id = id
 
     def __repr__(self):
-        return f"{self.X}^"
+        return f"{self.X}^@{self.id}"
 
     def __hash__(self):
-        return hash((self.X,))
+        return hash(("_arrow_nt", self.X, self.id))
 
     def __eq__(self, other):
-        return isinstance(other, _arrow_nt) and self.X == other.X
+        return (
+            isinstance(other, _arrow_nt) and self.X == other.X and self.id == other.id
+        )
+
+    @classmethod
+    def next_id(cls):
+        """Generate a unique ID for a new prefix transformation."""
+        cls._counter += 1
+        return cls._counter
 
 
 class Other:
-    """Generates a novel 'other' nonterminal, which may be used in 
-    various grammar transformations. """
+    """Generates a novel 'other' nonterminal, which may be used in
+    various grammar transformations."""
+
     __slots__ = ("x",)
 
     def __init__(self, x):
@@ -60,14 +71,15 @@ class Other:
         return f"{self.x}"
 
     def __hash__(self):
-        return hash((self.x,))
+        return hash(("Other", self.x))
 
     def __eq__(self, other):
         return isinstance(other, Other) and self.x == other.x
 
 
 class Slash:
-    """A slash nonterminal, which is used for the derivative grammar. """
+    """A slash nonterminal, which is used for the derivative grammar."""
+
     __slots__ = ("Y", "Z", "i")
 
     def __init__(self, Y, Z, i):
@@ -76,7 +88,7 @@ class Slash:
         self.i = i
 
     def __repr__(self):
-        return f"{self.Y}/{self.Z}@{self.i}" # pragma: no cover
+        return f"{self.Y}/{self.Z}@{self.i}"  # pragma: no cover
 
     def __hash__(self) -> int:
         return hash((self.Y, self.Z, self.i))
@@ -92,17 +104,18 @@ class Slash:
 
 class NotNull:
     """A non-null nonterminal, which is used for the nullary elimination.
-    Denotes a non-terminal that cannot yield an empty string. """
+    Denotes a non-terminal that cannot yield an empty string."""
+
     __slots__ = ("x",)
 
     def __init__(self, x):
         self.x = x
 
     def __repr__(self):
-        return f"{self.x}" # pragma: no cover
+        return f"{self.x}"  # pragma: no cover
 
     def __hash__(self):
-        return hash((self.x,))
+        return hash(("NotNull", self.x))
 
     def __eq__(self, other):
         return isinstance(other, NotNull) and self.x == other.x
@@ -1202,16 +1215,19 @@ class CFG:
 
     @cached_property
     def prefix_grammar(self):
-        f""" 
+        """
         The prefix grammar generates the prefix language of the parent grammar.
         PG[x] = sum_[s in Σ^*] G[xs].
         """
         pg = self.spawn()
         W = self.agenda()
 
+        # Generate a unique ID for this prefix transformation to avoid collisions
+        arrow_id = _arrow_nt.next_id()
+
         pg.S = _gen_nt(self.S)
         pg.add(
-            self.R.one, pg.S, _arrow_nt(self.S)
+            self.R.one, pg.S, _arrow_nt(self.S, arrow_id)
         )  # Attach start symbol to arrow nonterminal
         pg.add(
             W[self.S],
@@ -1225,10 +1241,13 @@ class CFG:
                 len(r.body) - 1, -1, -1
             ):  # Add the prefixed rules, with the "arrow" non-terminals on the right.
                 if self.is_terminal(r.body[i]):  # For a terminal, a^ := a
-                    pg.add(r.w * w, _arrow_nt(r.head), *r.body[:i], r.body[i])
+                    pg.add(r.w * w, _arrow_nt(r.head, arrow_id), *r.body[:i], r.body[i])
                 else:  # Otherwise, the arrow is transmitted downwards on the right spine of the derivation.
                     pg.add(
-                        r.w * w, _arrow_nt(r.head), *r.body[:i], _arrow_nt(r.body[i])
+                        r.w * w,
+                        _arrow_nt(r.head, arrow_id),
+                        *r.body[:i],
+                        _arrow_nt(r.body[i], arrow_id),
                     )
                 w = w * W[r.body[i]]
         return pg
