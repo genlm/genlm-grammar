@@ -6,7 +6,7 @@ authors = [
     { name = "The GenLM Team" }
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 dependencies = [
     "frozendict",
     "interegular",

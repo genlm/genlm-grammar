@@ -2,10 +2,17 @@
 """
 Clean benchmark: Compute prefix probabilities and plot runtime on log-log axes.
 Tracks runtime for each individual prefix.
+PARALLELIZED VERSION
 """
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
+# Use serif font (LaTeX-like) for title and legend
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['font.serif'] = ['DejaVu Serif', 'Times New Roman', 'Times']
 
 from genlm.grammar.cfg import CFG
 from genlm.grammar.treebank import TreebankCFG
@@ -20,88 +27,199 @@ def load_grammar(grammar_file):
     return TreebankCFG.from_string(grammar_str)
 
 
-def load_sentences(sentences_file, max_sentences=None, min_length=5):
+def load_sentences(sentences_file, max_sentences=None, min_length=3, max_length=100):
     sentences = []
     with open(sentences_file, 'r') as f:
         for i, line in enumerate(f):
             if max_sentences and i >= max_sentences:
                 break
             tokens = line.strip().split()
-            if len(tokens) >= min_length:  # Filter by minimum length
+            if len(tokens) >= min_length and len(tokens) <= max_length:  # Filter by minimum length
                 sentences.append(tokens)
     return sentences
 
 
-def benchmark_prefix_parsing(cfg, sentences):
-    """
-    Benchmark prefix parsing, recording runtime for each individual prefix.
+# Module-level variables for worker processes (loaded once per worker)
+_worker_cfg = None
+_worker_prefix_parser = None
+_worker_regular_parser = None
 
+
+def _init_worker_prefix(grammar_file):
+    """Initialize worker process for prefix parsing - loads grammar ONCE per worker."""
+    global _worker_cfg, _worker_prefix_parser
+    _worker_cfg = load_grammar(grammar_file)
+    prefix_grammar = _worker_cfg.prefix_grammar
+    _worker_prefix_parser = Earley(prefix_grammar)
+    print(f"Worker initialized: grammar size={_worker_cfg.size}, prefix grammar size={prefix_grammar.size}")
+
+
+def _init_worker_regular(grammar_file):
+    """Initialize worker process for regular parsing - loads grammar ONCE per worker."""
+    global _worker_cfg, _worker_regular_parser
+    _worker_cfg = load_grammar(grammar_file)
+    _worker_regular_parser = Earley(_worker_cfg)
+    print(f"Worker initialized: grammar size={_worker_cfg.size}")
+
+
+def process_sentence_prefix(sentence):
+    """
+    Process a single sentence for prefix parsing.
+    Uses pre-loaded grammar from worker initialization.
+    
+    Args:
+        sentence: List of tokens (sentence)
+    
+    Returns:
+        List of (length, runtime_ms) tuples
+    """
+    global _worker_cfg, _worker_prefix_parser
+    
+    results = []
+    
+    # Handle OOV
+    sent_processed, _ = _worker_cfg.replace_unknown(sentence)
+    
+    # Clear cache
+    _worker_prefix_parser._chart.clear()
+    
+    # Compute each prefix
+    start = time.time()
+    for j in range(1, len(sent_processed) + 1):
+        prefix = tuple(sent_processed[:j])
+        weight = _worker_prefix_parser(prefix)
+        elapsed = time.time() - start
+        
+        if elapsed > 0:
+            results.append((len(prefix), elapsed * 1000))
+    
+    return results
+
+
+def process_sentence_regular(sentence):
+    """
+    Process a single sentence for regular parsing.
+    Uses pre-loaded grammar from worker initialization.
+    
+    Args:
+        sentence: List of tokens (sentence)
+    
+    Returns:
+        List of (length, runtime_ms) tuples
+    """
+    global _worker_cfg, _worker_regular_parser
+    
+    results = []
+    
+    # Handle OOV
+    sent_processed, _ = _worker_cfg.replace_unknown(sentence)
+    
+    # Clear cache
+    _worker_regular_parser._chart.clear()
+    
+    # Compute each prefix
+    start = time.time()
+    for j in range(1, len(sent_processed) + 1):
+        prefix = tuple(sent_processed[:j])
+        weight = _worker_regular_parser(prefix)
+        elapsed = time.time() - start
+        
+        if elapsed > 0:
+            results.append((len(prefix), elapsed * 1000))
+    
+    return results
+
+
+def benchmark_prefix_parsing_parallel(grammar_file, sentences, n_workers=None):
+    """
+    Parallelized version of benchmark_prefix_parsing.
+    Grammar is loaded ONCE per worker process via initializer.
+    
+    Args:
+        grammar_file: Path to grammar file
+        sentences: List of sentences to process
+        n_workers: Number of parallel workers (default: number of CPUs)
+    
     Returns: list of (length, prefix_parse_runtime_ms) tuples
     """
-    prefix_grammar = cfg.prefix_grammar
-    parser = Earley(prefix_grammar)
+    if n_workers is None:
+        n_workers = multiprocessing.cpu_count()
+    
+    all_results = []
+    total_tasks = len(sentences)
+    
+    # Use initializer to load grammar ONCE per worker
+    with ProcessPoolExecutor(
+        max_workers=n_workers,
+        initializer=_init_worker_prefix,
+        initargs=(grammar_file,)
+    ) as executor:
+        futures = {
+            executor.submit(process_sentence_prefix, sentence): i 
+            for i, sentence in enumerate(sentences)
+        }
+        
+        completed = 0
+        for future in as_completed(futures):
+            try:
+                results = future.result()
+                all_results.extend(results)
+                completed += 1
+                progress = (completed / total_tasks) * 100
+                print(f"Progress: {completed}/{total_tasks} ({progress:.1f}%)", end='\r')
+            except Exception as e:
+                sentence_idx = futures[future]
+                print(f"\nError processing sentence {sentence_idx}: {e}")
+                completed += 1
+    
+    print()
+    return all_results
 
-    results = []  # List of (prefix_length, runtime) for each prefix
 
-    for sentence in sentences:
-        # Clear cache at start of each sentence
-        parser._chart.clear()
-
-        # Handle OOV
-        sent_processed, _ = cfg.replace_unknown(sentence)
-
-        # Compute each prefix and time it individually
-        # Start from j=1 to skip empty prefix (length 0)
-        # Time this specific prefix computation
-        start = time.time()
-        for j in range(1, len(sent_processed) + 1):
-            prefix = tuple(sent_processed[:j])
-
-            weight = parser(prefix)  # Compute probability for this prefix
-            elapsed = time.time() - start
-            print(f"Prefix: {prefix} - Prefix Weight: {weight}")
-
-            # Record: (length of this prefix, runtime in ms)
-            # Only record if runtime is positive
-            if elapsed > 0:
-                results.append((len(prefix), elapsed * 1000))
-
-    return results
-
-
-def benchmark_parsing(cfg, sentences):
+def benchmark_parsing_parallel(grammar_file, sentences, n_workers=None):
     """
-    Benchmark prefix parsing, recording runtime for each individual prefix.
-
+    Parallelized version of benchmark_parsing.
+    Grammar is loaded ONCE per worker process via initializer.
+    
+    Args:
+        grammar_file: Path to grammar file
+        sentences: List of sentences to process
+        n_workers: Number of parallel workers (default: number of CPUs)
+    
     Returns: list of (length, parse_runtime_ms) tuples
     """
-    parser = Earley(cfg)
-
-    results = []  # List of (prefix_length, runtime) for each prefix
-
-    for sentence in sentences:
-        # Clear cache at start of each sentence
-        parser._chart.clear()
-
-        # Handle OOV
-        sent_processed, _ = cfg.replace_unknown(sentence)
-
-        # Compute each prefix and time it individually
-        # Start from j=1 to skip empty prefix (length 0)
-        # Time this specific prefix computation
-        start = time.time()
-        for j in range(1, len(sent_processed) + 1):
-            prefix = tuple(sent_processed[:j])
-
-            weight = parser(prefix)  # Compute probability for this prefix
-            elapsed = time.time() - start
-            print(f"string: {prefix} - Weight: {weight}")
-            # Record: (length of this prefix, runtime in ms)
-            # Only record if runtime is positive
-            if elapsed > 0:
-                results.append((len(prefix), elapsed * 1000))
-
-    return results
+    if n_workers is None:
+        n_workers = multiprocessing.cpu_count()
+    
+    all_results = []
+    total_tasks = len(sentences)
+    
+    # Use initializer to load grammar ONCE per worker
+    with ProcessPoolExecutor(
+        max_workers=n_workers,
+        initializer=_init_worker_regular,
+        initargs=(grammar_file,)
+    ) as executor:
+        futures = {
+            executor.submit(process_sentence_regular, sentence): i 
+            for i, sentence in enumerate(sentences)
+        }
+        
+        completed = 0
+        for future in as_completed(futures):
+            try:
+                results = future.result()
+                all_results.extend(results)
+                completed += 1
+                progress = (completed / total_tasks) * 100
+                print(f"Progress: {completed}/{total_tasks} ({progress:.1f}%)", end='\r')
+            except Exception as e:
+                sentence_idx = futures[future]
+                print(f"\nError processing sentence {sentence_idx}: {e}")
+                completed += 1
+    
+    print()
+    return all_results
 
 
 def compute_loglog_regression(unique_lengths, means):
@@ -136,8 +254,8 @@ def compute_loglog_regression(unique_lengths, means):
     slope, intercept, r_value, p_value, std_err = stats.linregress(x_log, y_log)
     
     # Extract coefficients
-    exponent_b = slope  # This is logb in --> log(y) = log(a) +  log(x)*log(b)
-    coefficient_a = np.exp(intercept)  # This is a in --> log(y) = log(a) +  log(x)*log(b)
+    exponent_b = slope  # This is b in --> log(y) = log(a) +  log(x)*b
+    coefficient_a = np.exp(intercept)  # This is a in --> log(y) = log(a) +  log(x)*b
     
     # Compute R-squared
     r_squared = r_value ** 2
@@ -149,7 +267,7 @@ def compute_loglog_regression(unique_lengths, means):
     return exponent_b, coefficient_a, r_squared, x_fit, y_fit
 
 
-def plot_results(results, output_file="benchmark_prefix_loglog.png", MAX=50, MIN=3,
+def plot_results(results, output_file="benchmark_prefix_loglog.png", MAX=70, MIN=3,
                  ax=None, label=None, color='blue', scatter_alpha=0.1, 
                  show_regression=True):
     """
@@ -284,7 +402,7 @@ def plot_results(results, output_file="benchmark_prefix_loglog.png", MAX=50, MIN
         ax.plot(x_range, y_n, '--', color='gray', alpha=0.5, linewidth=1, label='O(n)', zorder=1)
         ax.plot(x_range, y_n2, '--', color='gray', alpha=0.5, linewidth=1, label='O(n²)', zorder=1)
         
-        ax.legend(fontsize=30)
+        ax.legend(fontsize=15)
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
         plt.close()
 
@@ -318,68 +436,60 @@ def print_statistics(results):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Clean prefix parsing benchmark")
+    parser = argparse.ArgumentParser(description="Clean prefix parsing benchmark (parallelized)")
     parser.add_argument("--grammar", required=True)
     parser.add_argument("--sentences", required=True)
     parser.add_argument("--max-sentences", type=int, default=None)
     parser.add_argument("--min-length", type=int, default=5)
     parser.add_argument("--output", default="benchmark_prefix_loglog.png")
+    parser.add_argument("--n-workers", type=int, default=None,
+                       help="Number of parallel workers (default: number of CPUs)")
 
     args = parser.parse_args()
 
-    cfg = load_grammar(args.grammar)
     sentences = load_sentences(args.sentences, args.max_sentences, args.min_length)
 
-    print(f"Grammar: {len(list(cfg))} rules")
     print(f"Sentences: {len(sentences)} (length >= {args.min_length})")
-    print(f"Running benchmarks...\n")
-
-    # Run both benchmarks
-    print("Running prefix parsing benchmark...")
-    results_prefix = benchmark_prefix_parsing(cfg, sentences)
     
+    n_workers = args.n_workers or multiprocessing.cpu_count()
+    print(f"Running benchmarks in parallel with {n_workers} workers...\n")
+    
+    # Run prefix parsing benchmark
+    print("Running prefix parsing benchmark...")
+    start_time = time.time()
+    results_prefix = benchmark_prefix_parsing_parallel(args.grammar, sentences, n_workers)
+    prefix_time = time.time() - start_time
+    print(f"Prefix parsing completed in {prefix_time:.2f} seconds")
+    
+    # Run regular parsing benchmark
     print("Running regular parsing benchmark...")
-    results_regular = benchmark_parsing(cfg, sentences)
+    start_time = time.time()
+    results_regular = benchmark_parsing_parallel(args.grammar, sentences, n_workers)
+    regular_time = time.time() - start_time
+    print(f"Regular parsing completed in {regular_time:.2f} seconds")
 
-    # Create first figure for prefix parsing
-    fig1, ax1 = plt.subplots(1, 1, figsize=(15, 10))
-    ax1.set_xscale('log')
-    ax1.set_yscale('log')
-    ax1.set_xlabel('Length (terminals)', fontsize=30)
-    ax1.set_ylabel('Runtime (ms)', fontsize=30)
-    ax1.set_title('Prefix Parsing Runtime', fontsize=16, fontweight='bold')
-    ax1.grid(True, alpha=0.3, which='both')
+    # Create single figure with both parsing results
+    fig, ax = plt.subplots(1, 1, figsize=(15, 10))
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlabel('Length (terminals)', fontsize=24)
+    ax.set_ylabel('Runtime (ms)', fontsize=24)
+    ax.set_title('Parsing Runtime Comparison', fontsize=16, fontweight='bold')
+    ax.grid(True, alpha=0.3, which='both')
 
     # Plot prefix parsing results
-    ax1, coeffs_prefix = plot_results(results_prefix, ax=ax1, label="Prefix Parsing", 
-                                     color='blue', scatter_alpha=0.05,)
+    ax, coeffs_prefix = plot_results(results_prefix, ax=ax, label="Prefix Parsing", 
+                                     color='blue', scatter_alpha=0.05)
 
-    # Finalize and save first figure
-    ax1.legend(fontsize=12, loc='best')
-    output_prefix = args.output.replace('.png', '_prefix.png')
-    plt.savefig(output_prefix, dpi=300, bbox_inches='tight')
-    plt.close()
-    print(f"\nPrefix parsing plot saved to {output_prefix}")
-
-    # Create second figure for regular parsing
-    fig2, ax2 = plt.subplots(1, 1, figsize=(15, 10))
-    ax2.set_xscale('log')
-    ax2.set_yscale('log')
-    ax2.set_xlabel('Length (terminals)', fontsize=30)
-    ax2.set_ylabel('Runtime (ms)', fontsize=30)
-    ax2.set_title('Regular Parsing Runtime', fontsize=16, fontweight='bold')
-    ax2.grid(True, alpha=0.3, which='both')
-
-    # Plot regular parsing results
-    ax2, coeffs_regular = plot_results(results_regular, ax=ax2, label="Regular Parsing", 
+    # Plot regular parsing results on same axis
+    ax, coeffs_regular = plot_results(results_regular, ax=ax, label="Regular Parsing", 
                                      color='red', scatter_alpha=0.05)
 
-    # Finalize and save second figure
-    ax2.legend(fontsize=12, loc='best')
-    output_regular = args.output.replace('.png', '_regular.png')
-    plt.savefig(output_regular, dpi=300, bbox_inches='tight')
+    # Finalize and save combined figure
+    ax.legend(fontsize=16, loc='best')
+    plt.savefig(args.output, dpi=600, bbox_inches='tight')
     plt.close()
-    print(f"Regular parsing plot saved to {output_regular}")
+    print(f"\nCombined plot saved to {args.output}")
     
     # Print regression results
     print("\n" + "="*70)

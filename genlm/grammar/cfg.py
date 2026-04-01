@@ -32,6 +32,8 @@ class _arrow_nt:
     """
     Generate a novel "arrow" nonterminal symbol name. which is used for teh prefix grammar.
     """
+    __slots__ = ('X',)
+
     def __init__(self, X):
         self.X = X
     
@@ -45,6 +47,8 @@ class _arrow_nt:
         return isinstance(other, _arrow_nt) and self.X == other.X
 
 class Other:
+    __slots__ = ('X',)
+
     def __init__(self, X):
         self.X = X
     
@@ -58,6 +62,8 @@ class Other:
         return isinstance(other, Other) and self.X == other.X
 
 class Slash:
+    __slots__ = ('Y', 'Z', 'i')
+
     def __init__(self, Y, Z, i):
         self.Y = Y
         self.Z = Z
@@ -73,6 +79,8 @@ class Slash:
         return isinstance(other, Slash) and self.Y == other.Y and self.Z == other.Z and self.i == other.i
 
 class NotNull:
+    __slots__ = ('X',)
+
     def __init__(self, X):
         self.X = X
     
@@ -95,6 +103,7 @@ class Rule:
         head: Left-hand side nonterminal symbol
         body: Right-hand side sequence of symbols
     """
+    __slots__ = ('w', 'head', 'body', '_hash')
 
     def __init__(self, w, head, body):
         """Initialize a Rule.
@@ -133,6 +142,7 @@ class Derivation:
         x: The symbol at this node
         ys: Child nodes of the derivation
     """
+    __slots__ = ('r', 'x', 'ys')
 
     def __init__(self, r, x, *ys):
         """Initialize a Derivation.

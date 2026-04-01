@@ -69,7 +69,7 @@ class Earley:
     )
 
     def __init__(self, cfg):
-        cfg = cfg.nullaryremove(binarize=True).unarycycleremove().renumber()
+        cfg = cfg.nullaryremove(binarize=True).unarycycleremove().renumber().trim()
         self.cfg = cfg
 
         # cache of chart columns
