@@ -10,6 +10,7 @@ import time
 import argparse
 import warnings
 import numpy as np
+import pandas as pd
 import multiprocessing
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -191,25 +192,32 @@ def run_benchmark(grammar_file, sentences, process_fn, use_prefix_grammar,
 
 # ── Statistics & plotting ────────────────────────────────────────────────────
 
-def compute_regression(lengths, means, counts=None, min_length=None,
-                       max_length=None):
-    lengths, means = np.array(lengths), np.array(means)
-    if counts is not None:
-        counts = np.array(counts)
-    mask = (lengths > 0) & (means > 0)
-    if min_length:
-        mask &= lengths >= min_length
-    if max_length:
-        mask &= lengths <= max_length
-    if mask.sum() < 2:
+def aggregate_by_position(results):
+    """Aggregate raw (position, time_ms) pairs into per-position statistics."""
+    df = pd.DataFrame(results, columns=["position", "time_ms"])
+    agg = df.groupby("position")["time_ms"].agg(["mean", "std", "count"])
+    agg["std"] = agg["std"].fillna(0)
+    margin = np.where(
+        agg["count"] > 1,
+        stats.t.ppf(0.975, agg["count"] - 1) * agg["std"] / np.sqrt(agg["count"]),
+        0,
+    )
+    agg["ci_lo"] = agg["mean"] - margin
+    agg["ci_hi"] = agg["mean"] + margin
+    return agg.reset_index()
+
+
+def fit_power_law(agg):
+    """Fit y = a * x^b via weighted log-log regression. Input: aggregated df."""
+    valid = agg[(agg["position"] > 0) & (agg["mean"] > 0)]
+    if len(valid) < 2:
         return None
-    x_log, y_log = np.log(lengths[mask]), np.log(means[mask])
-    weights = counts[mask] if counts is not None else np.ones(len(x_log))
+    x_log = np.log(valid["position"].values)
+    y_log = np.log(valid["mean"].values)
     X = sm.add_constant(x_log)
-    model = sm.WLS(y_log, X, weights=weights)
-    res = model.fit()
+    res = sm.WLS(y_log, X, weights=valid["count"].values).fit()
     intercept, slope = res.params
-    x_fit = np.linspace(lengths[mask].min(), lengths[mask].max(), 100)
+    x_fit = np.linspace(valid["position"].min(), valid["position"].max(), 100)
     return {
         "b": slope,
         "a": np.exp(intercept),
@@ -219,54 +227,17 @@ def compute_regression(lengths, means, counts=None, min_length=None,
     }
 
 
-def plot_results(results, ax, label, color, min_length_reg=None,
-                 max_length_reg=None):
-    if not results:
-        return None
-    lengths = np.array([l for l, _ in results])
-    times = np.array([t for _, t in results])
-
-    unique = sorted(set(lengths))
-    means, ci_lo, ci_hi, counts = [], [], [], []
-    for l in unique:
-        t = times[lengths == l]
-        m = np.mean(t)
-        s = np.std(t, ddof=1) if len(t) > 1 else 0
-        n = len(t)
-        margin = stats.t.ppf(0.975, n - 1) * s / np.sqrt(n) if n > 1 else 0
-        means.append(m)
-        ci_lo.append(m - margin)
-        ci_hi.append(m + margin)
-        counts.append(n)
-
-    unique = np.array(unique)
-    means = np.array(means)
-    ci_lo = np.array(ci_lo)
-    ci_hi = np.array(ci_hi)
-    counts = np.array(counts)
-
-    mask = np.ones(len(unique), dtype=bool)
-    if min_length_reg:
-        mask &= unique >= min_length_reg
-    if max_length_reg:
-        mask &= unique <= max_length_reg
-
-    reg = compute_regression(unique, means, counts, min_length_reg,
-                             max_length_reg)
-    fit_str = ""
-    if reg:
-        fit_str = f" ($a={reg['a']:.2f},\\; b={reg['b']:.2f}$)"
-
-    ax.plot(unique[mask], means[mask], "o-", ms=1.5, lw=1, color=color,
+def plot_series(agg, reg, ax, label, color):
+    """Plot aggregated time series with CI band and optional regression fit."""
+    if agg.empty:
+        return
+    fit_str = f" ($a={reg['a']:.2f},\\; b={reg['b']:.2f}$)" if reg else ""
+    ax.plot(agg["position"], agg["mean"], "o-", ms=1.5, lw=1, color=color,
             label=label + fit_str, zorder=10)
-    ax.fill_between(unique[mask], ci_lo[mask], ci_hi[mask], alpha=0.15,
-                    color=color)
-
+    ax.fill_between(agg["position"], agg["ci_lo"], agg["ci_hi"],
+                    alpha=0.15, color=color)
     if reg:
-        ax.plot(
-            reg["x_fit"], reg["y_fit"], "--", color=color, lw=1, alpha=0.6,
-        )
-    return reg
+        ax.plot(reg["x_fit"], reg["y_fit"], "--", color=color, lw=1, alpha=0.6)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -383,9 +354,11 @@ def main():
     }
 
     for name, data in results.items():
-        reg = plot_results(data, ax, labels[name], colors[name],
-                           args.min_position,
-                           args.max_position)
+        agg = aggregate_by_position(data)
+        agg = agg[(agg["position"] >= args.min_position) &
+                  (agg["position"] <= args.max_position)]
+        reg = fit_power_law(agg)
+        plot_series(agg, reg, ax, labels[name], colors[name])
         if reg:
             print(f"{labels[name]:25s}: b={reg['b']:.2f}, "
                   f"a={reg['a']:.2f}, R²={reg['r2']:.2f}")

@@ -6,7 +6,7 @@ from genlm.grammar import add_EOS, EOS, CFG
 from genlm.grammar.parse.earley import Earley
 from genlm.grammar.parse.earley import EarleyLM
 from genlm.grammar.parse.cky import CKYLM, IncrementalCKY
-from genlm.grammar.semiring import Float, MaxTimes, GradReal
+from genlm.grammar.semiring import Float, MaxTimes
 import pdb
 
 
@@ -462,35 +462,8 @@ def test_mystery():
         print(colors.mark(err <= 1e-5))
         assert err <= 1e-5, err
 
-### Test Earley with the GradReal semiring.
 
-def test_palindrome():
-    cfg = CFG.from_string(
-        """
-        0.3: S -> a S a
-        0.4: S -> b S b
-        0.3: S -> a b
-        """,
-        GradReal,
-    )
-
-    earley = Earley(cfg)
-
-    x = ""
-    want = cfg(x)
-    have = earley(x)
-    assert cfg.R.metric(have, want) <= 1e-10
-
-    x = "aabbaa"
-    want = cfg(x)
-    have = earley(x)
-    assert cfg.R.metric(have, want) <= 1e-10
-
-    x = "aabba"
-    want = cfg(x)
-    have = earley(x)
-    assert have == want == GradReal(0.0)
-
+  
 
 if __name__ == "__main__":
     from arsenal import testing_framework

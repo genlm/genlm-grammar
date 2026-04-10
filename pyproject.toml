@@ -11,18 +11,22 @@ dependencies = [
     "frozendict",
     "interegular",
     "lark",
-    "nltk",
     "numpy",
     "arsenal @ git+https://github.com/timvieira/arsenal.git@master",
     "IPython",
     "graphviz",
     "pandas",
-    "matplotlib",
-    "scipy",
-    "torch",
 ]
 
 [project.optional-dependencies]
+grad = [
+    "torch",
+]
+bench = [
+    "matplotlib",
+    "scipy",
+    "statsmodels",
+]
 test = [
     "coverage",
     "pytest",

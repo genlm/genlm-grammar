@@ -1,7 +1,6 @@
 import re
 import numpy as np
 from genlm.grammar.chart import Chart, GradChart
-import torch
 
 
 class Semiring:
@@ -254,78 +253,6 @@ class Real(Semiring):
 
 Real.zero = Real(0)
 Real.one = Real(1)
-
-
-class GradReal(Semiring):
-
-    zero = None
-    one = None
-
-    def __init__(self, score, requires_grad = False):
-        if isinstance(score, torch.Tensor):
-            self.score = score
-        else:
-            self.score = torch.tensor(float(score), dtype = torch.float64, requires_grad = requires_grad)
-
-    def __eq__(self, other):
-        if isinstance(other, GradReal):
-            return self.score.item() == other.score.item()
-        elif isinstance(other,Semiring):
-            return self.score.item() == other.score
-        else:
-            return False
-
-    def star(self):
-        return GradReal(1.0 / (1.0 - self.score))
-
-    def __add__(self, other):
-        return GradReal(self.score + other.score)
-
-    def __mul__(self, other):
-        return GradReal(self.score * other.score)
-
-    def __repr__(self):
-        return f"{self.score.item()}"
-
-    def metric(self, other): 
-        return (self.score - other.score).abs().item()
-
-    @classmethod
-    def from_real(cls, x):
-        if isinstance(x, Real):
-            return GradReal(x.score)
-        elif isinstance(x, float) or isinstance(x, int):
-            return GradReal(float(x))
-        else:
-            raise ValueError(f"x must be a Real or a float, got {type(x)}")
-
-    @classmethod
-    def chart(self, *args, **kwargs):
-        return GradChart(self, *args, **kwargs)
-
-    def to_real(self):
-        return Real(self.score.item())
-
-    def enable_grad(self):
-        self.score.requires_grad = True
-        return self
-
-    def disable_grad(self):
-        self.score.requires_grad = False
-        return self
-
-    def backward(self):
-        self.score.backward()
-
-    def grad_item(self):
-        if self.score.grad is not None:
-            return self.score.grad.item()
-        return None 
-            
-       
-
-GradReal.zero = GradReal(0.0)
-GradReal.one = GradReal(1.0)
 
 
 class Log(Semiring):

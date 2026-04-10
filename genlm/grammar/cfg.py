@@ -12,7 +12,6 @@ from genlm.grammar.wfsa import EPSILON
 from genlm.grammar.linear import WeightedGraph
 from genlm.grammar.semiring import Boolean, Expectation, Float, Real
 from genlm.grammar.chart import Chart
-from genlm.grammar.semiring import GradReal
 import pdb
 
 
@@ -1250,21 +1249,7 @@ class CFG:
         "Total weight of all derivations that have `xs` as a prefix."
         return self.prefix_grammar(xs)
 
-    def next_token(self,xs):
-        """Next token computations using the batch grammar"""
-        assert self.R ==Real or self.R == Float, "The semiring must be Real or Float"
-        output= self.R.chart()
-
-        batch_grammar = self.binarize().batch_grammar.make_gradient_cfg() # set the batch grammar
-        batch_grammar.enable_grad(filter=lambda rule: isinstance(rule.head, _arrow_nt))
-        batch_grammar(xs).backward() # parse and compute the gradient
-        for rule in batch_grammar:
-            if isinstance(rule.head, _arrow_nt):
-                grad = rule.w.grad_item()
-                output[rule.head.X] = output[rule.head.X] + (self.R(grad) if grad is not None else self.R.zero)
-        return output
-
-
+    
     @cached_property
     def prefix_grammar(self):
         pg = self.spawn()
@@ -1527,21 +1512,6 @@ class CFG:
 
         return new
 
-    def enable_grad(self, filter = None):
-        assert self.R == GradReal, "The semiring must be a GradReal"
-        if filter is None:
-            filter = lambda rule: True
-        for rule in self:
-            if filter(rule):
-                rule.w.enable_grad()
-        return self
-
-    def make_gradient_cfg(self):
-        assert self.R == Float or Real, "To turn the grammar into gradient mode, the semiring must be Float or Real"
-        new = self.spawn(R=GradReal)
-        for rule in self:
-            new.add(GradReal.from_real(rule.w), rule.head, *rule.body)
-        return new
 
 def prefix_transducer(R, V):
     "Construct the prefix transducer over semiring `R` and alphabet `V`."
