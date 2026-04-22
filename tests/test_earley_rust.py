@@ -14,16 +14,7 @@ from genlm.grammar.semiring import Float
 from genlm.grammar.parse.earley import Earley, EarleyLM
 from genlm.grammar.parse.cky import CKYLM, IncrementalCKY
 
-try:
-    from genlm.grammar.parse.earley_rust import EarleyRust, EarleyRustLM
-
-    RUST_AVAILABLE = True
-except ImportError:
-    RUST_AVAILABLE = False
-
-pytestmark = pytest.mark.skipif(
-    not RUST_AVAILABLE, reason="Rust extension (genlm_earley) not compiled"
-)
+from genlm.grammar.parse.earley_rust import EarleyRust, EarleyRustLM
 
 
 def assert_equal(have, want, tol=1e-10):

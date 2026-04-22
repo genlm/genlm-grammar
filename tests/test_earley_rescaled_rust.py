@@ -17,18 +17,9 @@ from genlm.grammar.parse.earley_rescaled import Earley as EarleyRescaledPython
 from genlm.grammar.parse.earley_rescaled import EarleyLM as EarleyLMRescaledPython
 from genlm.grammar.parse.cky import CKYLM, IncrementalCKY
 
-try:
-    from genlm.grammar.parse.earley_rescaled_rust import (
-        EarleyRescaledRust,
-        EarleyRescaledRustLM,
-    )
-
-    RUST_AVAILABLE = True
-except ImportError:
-    RUST_AVAILABLE = False
-
-pytestmark = pytest.mark.skipif(
-    not RUST_AVAILABLE, reason="Rust extension (genlm_earley) not compiled"
+from genlm.grammar.parse.earley_rescaled_rust import (
+    EarleyRescaledRust,
+    EarleyRescaledRustLM,
 )
 
 

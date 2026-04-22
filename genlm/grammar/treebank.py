@@ -49,7 +49,8 @@ class TreebankCFG(CFG):
             if not line or line.startswith(comment):
                 continue
             try:
-                [(lhs, rhs, w)] = re.findall(r"(\S+)->\[\s*(.*)\]\s*:\s*(.*)$", line)
+                # Support optional leading number (e.g. "1 Discourse->[...] : 0.03")
+                [(lhs, rhs, w)] = re.findall(r"(?:[\d.eE+\-]+\s+)?(\S+)->\[\s*(.*)\]\s*:\s*(.*)$", line)
                 lhs = lhs.strip()
                 rhs = rhs.strip().split()
                 for x in rhs:

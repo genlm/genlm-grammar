@@ -29,9 +29,9 @@ plt.rcParams.update({
     "text.usetex": True,
     "font.family": "serif",
     "font.serif": ["Computer Modern Roman"],
-    "font.size": 8,
-    "axes.labelsize": 8,
-    "axes.titlesize": 8,
+    "font.size": 10,
+    "axes.labelsize": 10,
+    "axes.titlesize": 10,
     "legend.fontsize": 6,
     "xtick.labelsize": 6,
     "ytick.labelsize": 6,
@@ -231,7 +231,7 @@ def plot_series(agg, reg, ax, label, color):
     """Plot aggregated time series with CI band and optional regression fit."""
     if agg.empty:
         return
-    fit_str = f" ($a={reg['a']:.2f},\\; b={reg['b']:.2f}$)" if reg else ""
+    fit_str = f" (${{a}}\!=\!{reg['a']:.2f},\\; {{b}}\!=\!{reg['b']:.2f}$)" if reg else ""
     ax.plot(agg["position"], agg["mean"], "o-", ms=1.5, lw=1, color=color,
             label=label + fit_str, zorder=10)
     ax.fill_between(agg["position"], agg["ci_lo"], agg["ci_hi"],
@@ -249,7 +249,7 @@ def main():
     parser.add_argument("--grammar", required=True)
     parser.add_argument("--sentences", required=True)
     parser.add_argument("--max-sentences", type=int)
-    parser.add_argument("--min-length", type=int, default=5)
+    parser.add_argument("--min-length", type=int, default=10)
     parser.add_argument("--max-length", type=int, default=200)
     parser.add_argument("--output-dir", default="results")
     parser.add_argument("--n-workers", type=int)
@@ -257,7 +257,7 @@ def main():
     parser.add_argument("--skip-regular", action="store_true")
     parser.add_argument("--skip-prefix", action="store_true")
     parser.add_argument("--skip-next-token", action="store_true")
-    parser.add_argument("--min-position", type=int, default=5)
+    parser.add_argument("--min-position", type=int, default=10)
     parser.add_argument("--max-position", type=int, default=50)
     args = parser.parse_args()
 
@@ -365,7 +365,7 @@ def main():
 
     ax.legend(loc="upper left", framealpha=0.9, edgecolor="none")
 
-    fig.tight_layout(pad=0.3)
+    fig.tight_layout(pad=0)
 
     # Save with timestamp
     out_dir = Path(args.output_dir)

@@ -1,0 +1,3 @@
+[submodule "earleyx"]
+	path = earleyx
+	url = git@github.com:ClementeP/earleyx-acl-26-fork.git

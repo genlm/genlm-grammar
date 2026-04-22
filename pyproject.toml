@@ -19,9 +19,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-grad = [
-    "torch",
-]
 bench = [
     "matplotlib",
     "scipy",
@@ -32,20 +29,17 @@ test = [
     "pytest",
     "pytest-benchmark",
 ]
-docs = [
-    "mkdocs",
-    "mkdocstrings[python]",
-    "mkdocs-material",
-    "mkdocs-gen-files",
-    "mkdocs-literate-nav",
-    "mkdocs-section-index",
-]
 
 [tool.setuptools.packages.find]
 include = ["genlm", "genlm/grammar"]
 
+[[tool.setuptools-rust.ext-modules]]
+target = "genlm_earley"
+path = "rust/Cargo.toml"
+binding = "PyO3"
+
 [build-system]
-requires = ["setuptools>=64.0", "setuptools-scm>=8"]
+requires = ["setuptools>=64.0", "setuptools-scm>=8", "setuptools-rust>=1.8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]

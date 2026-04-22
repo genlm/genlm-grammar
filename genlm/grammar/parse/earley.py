@@ -37,8 +37,8 @@ class Column:
 
     def __init__(self, k):
         self.k = k
-        self.i_chart = {}
-        self.c_chart = {}
+        self.i_chart = {} #incomplete items 
+        self.c_chart = {} #complete items
 
         # Within column J, this datastructure maps nonterminals Y to a set of items
         #   Y => {(I, X, Ys) | phrase(I,X/[Y],J) ≠ 0}
@@ -156,15 +156,15 @@ class Earley:
         if len(x) == 0:
             return [self._initial_column]
         else:
-            chart = self.chart(x[:-1])
-            last_chart = self.next_column(chart, x[-1])
+            chart = self.chart(x[:-1]) # retrieve the memoized columns
+            last_chart = self.next_column(chart, x[-1]) # Earley step
             return chart + [
                 last_chart
             ]  # TODO: avoid list addition here as it is not constant time!
 
     def next_column(self, prev_cols, token):
         prev_col = prev_cols[-1]
-        next_col = Column(prev_cols[-1].k + 1)
+        next_col = Column(prev_cols[-1].k + 1) 
         next_col_c_chart = next_col.c_chart
         prev_col_i_chart = prev_col.i_chart
 

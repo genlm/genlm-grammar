@@ -35,7 +35,7 @@ from benchmark import (
 )
 
 # ── EarleyX paths ──────────────────────────────────────────────────────────
-EARLEYX_DIR = Path(os.environ.get("EARLEYX_DIR", str(Path.home() / "earleyx")))
+EARLEYX_DIR = Path(os.environ.get("EARLEYX_DIR", str(Path(__file__).resolve().parent.parent / "earleyx")))
 EARLEYX_CP = f"{EARLEYX_DIR / 'classes'}:{EARLEYX_DIR / 'lib'}/*"
 
 # ── Matplotlib: ACL style ──────────────────────────────────────────────────
@@ -43,9 +43,9 @@ plt.rcParams.update({
     "text.usetex": True,
     "font.family": "serif",
     "font.serif": ["Computer Modern Roman"],
-    "font.size": 8,
-    "axes.labelsize": 8,
-    "axes.titlesize": 8,
+    "font.size": 10,
+    "axes.labelsize": 10,
+    "axes.titlesize": 10,
     "legend.fontsize": 6,
     "xtick.labelsize": 6,
     "ytick.labelsize": 6,
@@ -213,14 +213,14 @@ def main():
     ap.add_argument("--grammar", required=True)
     ap.add_argument("--sentences", required=True)
     ap.add_argument("--max-sentences", type=int)
-    ap.add_argument("--min-length", type=int, default=5)
+    ap.add_argument("--min-length", type=int, default=10)
     ap.add_argument("--max-length", type=int, default=200)
-    ap.add_argument("--min-position", type=int, default=5)
+    ap.add_argument("--min-position", type=int, default=10)
     ap.add_argument("--max-position", type=int, default=50)
     ap.add_argument("--backends", nargs="+", default=["rust"],
                     choices=["python", "rust", "rust-rescaled"])
     ap.add_argument("--n-workers", type=int)
-    ap.add_argument("--timeout", type=int, default=3600,
+    ap.add_argument("--timeout", type=int, default=36000,
                     help="Per-chunk timeout for EarleyX in seconds (default: 3600)")
     ap.add_argument("--output-dir", default="results")
     ap.add_argument("--skip-earleyx", action="store_true")
@@ -267,7 +267,7 @@ def main():
                   f"a={reg['a']:.2f}, R²={reg['r2']:.4f}")
 
     ax.legend(loc="upper left", framealpha=0.9, edgecolor="none")
-    fig.tight_layout(pad=0.3)
+    fig.tight_layout(pad=0)
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

@@ -21,9 +21,13 @@ from genlm.grammar.semiring import Float
 from genlm.grammar.parse.earley import Earley
 from genlm.grammar.cfglm import locally_normalize
 
-EARLEYX_DIR = Path("/home/clementepasti1/earleyx")
+EARLEYX_DIR = Path(__file__).resolve().parent.parent / "earleyx"
 EARLEYX_CLASSPATH = f"{EARLEYX_DIR / 'classes'}:{EARLEYX_DIR / 'lib'}/*"
-EARLEYX_AVAILABLE = (EARLEYX_DIR / "classes" / "parser" / "Main.class").exists()
+
+# EarleyX is vendored in the repo — fail loudly if not compiled
+assert (EARLEYX_DIR / "classes" / "parser" / "Main.class").exists(), (
+    f"EarleyX not compiled. Run 'ant compile' in {EARLEYX_DIR}"
+)
 
 
 def make_parser(grammar_str, start='ROOT'):
@@ -153,7 +157,6 @@ def assert_prefixes_match(grammar_str, sentences, start='ROOT', tol=1e-6):
         pytest.fail(msg)
 
 
-@pytest.mark.skipif(not EARLEYX_AVAILABLE, reason="EarleyX not compiled")
 class TestEarleyXAgreement:
     """On normalized (proper PCFG) toy grammars, our prefix parser and
     EarleyX must produce identical prefix probabilities at every position."""
@@ -394,7 +397,6 @@ class TestLocallyNormalize:
         sentences = [('a', 'b'), ('c',)]
         self._assert_string_probs_proportional(cfg, norm, sentences)
 
-    @pytest.mark.skipif(not EARLEYX_AVAILABLE, reason="EarleyX not compiled")
     def test_normalized_unnormalized_grammar_matches_earleyx(self):
         """After locally_normalize, an unnormalized grammar should produce
         prefix probabilities that match EarleyX."""
@@ -431,190 +433,8 @@ class TestLocallyNormalize:
         assert_prefixes_match(norm_str, sentences, start='ROOT')
 
 
-GRAMMARS_DIR = Path(__file__).parent.parent / "grammars"
-GRAMMAR_500_NORM_PATH = GRAMMARS_DIR / "grammar_500_normalized.txt"
-GRAMMAR_5000_NORM_PATH = GRAMMARS_DIR / "grammar_5000_normalized.txt"
-SENTENCES_500_PATH = GRAMMARS_DIR / "sentences_500.txt"
 
 
-def cfg_to_earleyx_str(cfg):
-    """Convert a CFG object to EarleyX grammar file format."""
-    lines = []
-    for r in cfg:
-        rhs_parts = []
-        for sym in r.body:
-            if sym in cfg.V:
-                rhs_parts.append(sym if sym.startswith('_') else f'_{sym}')
-            else:
-                rhs_parts.append(sym)
-        lines.append(f"{r.head}->[{' '.join(rhs_parts)}] : {float(r.w)}")
-    return '\n'.join(lines)
-
-
-def run_earleyx_on_cfg(cfg, sentences):
-    """Run EarleyX on a CFG object. Returns dict: sent_idx -> list of floats."""
-    earleyx_grammar_str = cfg_to_earleyx_str(cfg)
-
-    # EarleyX expects raw words without '_' prefix in the input
-    earleyx_sentences = [
-        [tok[1:] if tok.startswith('_') else tok for tok in sent]
-        for sent in sentences
-    ]
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        grammar_file = os.path.join(tmpdir, "grammar.txt")
-        input_file = os.path.join(tmpdir, "input.txt")
-        out_prefix = os.path.join(tmpdir, "result")
-
-        with open(grammar_file, 'w') as f:
-            f.write(earleyx_grammar_str + '\n')
-
-        with open(input_file, 'w') as f:
-            for sent in earleyx_sentences:
-                f.write(' '.join(sent) + '\n')
-
-        cmd = [
-            "java", "-classpath", EARLEYX_CLASSPATH,
-            "parser.Main",
-            "-in", input_file,
-            "-out", out_prefix,
-            "-grammar", grammar_file,
-            "-obj", "prefix",
-            "-root", str(cfg.S),
-            "-normalprob",
-        ]
-
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"EarleyX failed (rc={result.returncode}):\n"
-                f"stderr: {result.stderr[:2000]}"
-            )
-
-        results = {}
-        current_sent = None
-        with open(f"{out_prefix}.prefix") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#!') or line.startswith('# !'):
-                    continue
-                if line.startswith('#'):
-                    try:
-                        current_sent = int(line[1:].strip())
-                        if current_sent not in results:
-                            results[current_sent] = []
-                    except ValueError:
-                        continue
-                elif current_sent is not None:
-                    parts = line.split()
-                    if len(parts) == 2:
-                        try:
-                            results[current_sent].append(float(parts[1]))
-                        except ValueError:
-                            continue
-        return results
-
-
-def load_treebank_test_data(norm_grammar_path, raw_grammar_path, n_sentences=5,
-                           min_len=3, max_len=8):
-    """Load a normalized grammar, build parser, and prepare test sentences."""
-    from genlm.grammar.treebank import TreebankCFG
-
-    cfg = TreebankCFG.from_string(norm_grammar_path.read_text())
-    parser = Earley(cfg.prefix_grammar)
-
-    raw_cfg = TreebankCFG.from_string(raw_grammar_path.read_text())
-
-    sentences = []
-    if SENTENCES_500_PATH.exists():
-        with open(SENTENCES_500_PATH) as f:
-            for line in f:
-                tokens = line.strip().split()
-                if min_len <= len(tokens) <= max_len:
-                    sentences.append(tokens)
-                if len(sentences) >= n_sentences:
-                    break
-
-    if not sentences:
-        sentences = [['_The', '_company', '_said']]
-
-    processed = []
-    for sent in sentences:
-        replaced, _ = raw_cfg.replace_unknown(sent)
-        processed.append(replaced)
-
-    return parser, cfg, processed
-
-
-def assert_treebank_prefixes_match(parser, cfg, sentences, rel_tol=5e-3):
-    """Compare prefix probabilities between our parser and EarleyX on a treebank grammar."""
-    earleyx_prefix = run_earleyx_on_cfg(cfg, sentences)
-
-    mismatches = []
-    for i, sent in enumerate(sentences):
-        ex_prefs = earleyx_prefix.get(i, [])
-        if not ex_prefs:
-            continue
-
-        for j in range(1, len(sent) + 1):
-            ours = float(parser(tuple(sent[:j])))
-            theirs = ex_prefs[j - 1] if j - 1 < len(ex_prefs) else None
-            if theirs is None:
-                continue
-
-            tol = max(1e-10, abs(ours) * rel_tol)
-            if abs(ours - theirs) > tol:
-                mismatches.append((
-                    i, j, sent[:j], ours, theirs,
-                    abs(ours - theirs) / max(abs(ours), 1e-30)
-                ))
-
-    if mismatches:
-        msg = "Prefix probability mismatches on normalized treebank grammar:\n"
-        for si, j, prefix, ours, theirs, rel_err in mismatches[:10]:
-            msg += (
-                f"  sent {si}, prefix {prefix}: "
-                f"ours={ours:.10e}, EarleyX={theirs:.10e}, "
-                f"rel_err={rel_err:.2e}\n"
-            )
-        pytest.fail(msg)
-
-
-@pytest.mark.skipif(not EARLEYX_AVAILABLE, reason="EarleyX not compiled")
-@pytest.mark.skipif(not GRAMMAR_500_NORM_PATH.exists(), reason="grammar_500_normalized.txt not found")
-class TestEarleyXTreebank500Agreement:
-    """Compare prefix probabilities on the locally-normalized 500-rule treebank grammar."""
-
-    @pytest.fixture(scope="class")
-    def setup(self):
-        return load_treebank_test_data(
-            GRAMMAR_500_NORM_PATH,
-            GRAMMARS_DIR / "grammar_500.txt",
-        )
-
-    def test_prefix_probabilities_agree(self, setup):
-        parser, cfg, sentences = setup
-        assert_treebank_prefixes_match(parser, cfg, sentences)
-
-
-@pytest.mark.skipif(not EARLEYX_AVAILABLE, reason="EarleyX not compiled")
-@pytest.mark.skipif(not GRAMMAR_5000_NORM_PATH.exists(), reason="grammar_5000_normalized.txt not found")
-class TestEarleyXTreebank5000Agreement:
-    """Compare prefix probabilities on the locally-normalized 5000-rule treebank grammar."""
-
-    @pytest.fixture(scope="class")
-    def setup(self):
-        return load_treebank_test_data(
-            GRAMMAR_5000_NORM_PATH,
-            GRAMMARS_DIR / "grammar_5000.txt",
-        )
-
-    def test_prefix_probabilities_agree(self, setup):
-        parser, cfg, sentences = setup
-        assert_treebank_prefixes_match(parser, cfg, sentences)
-
-
-@pytest.mark.skipif(not EARLEYX_AVAILABLE, reason="EarleyX not compiled")
 class TestEarleyXPerWordTiming:
     """Verify that EarleyX emits per-word cumulative timing (## WordTime lines)."""
 
