@@ -300,6 +300,8 @@ class Log(Semiring):
         return abs(self.score - other.score)
 
     def star(self):
+        if self.score >= 0:
+            return Log(float("inf"))
         return Log(-np.log1p(-np.exp(self.score)))
 
     def __add__(self, other):
@@ -307,10 +309,7 @@ class Log(Semiring):
             return other
         if other == Log.zero:
             return self
-        if self.score > other.score:
-            return Log(self.score + np.log(1 + np.exp(other.score - self.score)))
-        else:
-            return Log(other.score + np.log(1 + np.exp(self.score - other.score)))
+        return Log(np.logaddexp(self.score, other.score))
 
     def __mul__(self, other):
         if self == Log.zero:

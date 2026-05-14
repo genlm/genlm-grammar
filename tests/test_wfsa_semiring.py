@@ -1,5 +1,17 @@
-from genlm.grammar.semiring import Semiring
+from genlm.grammar.semiring import Log, Semiring
 from genlm.grammar.wfsa.base import WFSA
+
+
+def test_log_star_divergent_returns_inf():
+    # Closure of weight >= 1 diverges -> return +inf
+    assert Log(0.0).star() == Log(float("inf"))
+    assert Log(0.5).star() == Log(float("inf"))
+
+
+def test_log_add_absorbs_inf():
+    # +inf must absorb in __add__
+    assert (Log(float("inf")) + Log(1.0)).score == float("inf")
+    assert (Log(float("inf")) + Log(float("inf"))).score == float("inf")
 
 # def test_basics():
 #    from semirings import Symbol
