@@ -296,10 +296,18 @@ Real.one = Real(1)
 
 
 class Log(Semiring):
+
+    def __init__(self, score):
+        if score != -np.inf:
+            score = float(score)
+        self.score = score
+
     def metric(self, other):
         return abs(self.score - other.score)
 
     def star(self):
+        if self.score >= 0:
+            raise ValueError("Closure is only defined for negative values")
         return Log(-np.log1p(-np.exp(self.score)))
 
     def __add__(self, other):
