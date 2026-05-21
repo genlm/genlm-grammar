@@ -306,7 +306,8 @@ class Log(Semiring):
         return abs(self.score - other.score)
 
     def star(self):
-        assert self.score < 0, "Closure is only defined for negative values"
+        if self.score >= 0:
+            raise ValueError("Closure is only defined for negative values")
         return Log(-np.log1p(-np.exp(self.score)))
 
     def __add__(self, other):

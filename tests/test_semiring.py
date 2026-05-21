@@ -1,4 +1,5 @@
 from genlm.grammar.semiring import Log
+import pytest
 import random
 
 
@@ -54,3 +55,10 @@ def test_log_distributive():
 def test_log_star():
     a = Log(random.uniform(-10, -0.01))
     assert a.star().metric(Log.one + (a * a.star())) < log_toll
+
+
+def test_log_star_undefined_for_nonnegative():
+    with pytest.raises(ValueError):
+        Log.one.star()
+    with pytest.raises(ValueError):
+        Log(random.uniform(0.01, 10)).star()
