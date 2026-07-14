@@ -10,6 +10,7 @@ from genlm.grammar.linear import WeightedGraph
 from genlm.grammar.semiring import Boolean
 from genlm.grammar import Float
 from genlm.grammar.cfglm import EOS, add_EOS, locally_normalize
+from genlm.grammar.util import DEFAULT_MAX_CACHE_SIZE
 
 
 class EarleyLM(LM):
@@ -27,12 +28,14 @@ class EarleyLM(LM):
         model (Earley): The Earley parser for computing probabilities
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, max_cache_size=DEFAULT_MAX_CACHE_SIZE):
         """Initialize an Earley-based language model.
 
         Args:
             cfg (CFG): The context-free grammar to use as the language model. Will be
                 converted to prefix form for incremental parsing.
+            max_cache_size (int, optional): Maximum number of prefixes kept in the
+                chart cache (LRU eviction). Defaults to 10,000; None means unbounded.
 
         Raises:
             AssertionError: If EOS token not in grammar vocabulary after transformation
@@ -40,7 +43,7 @@ class EarleyLM(LM):
         if EOS not in cfg.V:
             cfg = add_EOS(cfg)
         self.cfg = cfg  # Note: <- cfg before prefix transform & normalization!
-        self.model = Earley(cfg.prefix_grammar)
+        self.model = Earley(cfg.prefix_grammar, max_cache_size=max_cache_size)
         super().__init__(V=cfg.V, eos=EOS)
 
     def p_next(self, context):
@@ -128,6 +131,7 @@ class Earley:
         "cfg",
         "order",
         "_chart",
+        "max_cache_size",
         "V",
         "eos",
         "_initial_column",
@@ -140,12 +144,15 @@ class Earley:
         "rest_Ys",
     )
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, max_cache_size=DEFAULT_MAX_CACHE_SIZE):
+        if max_cache_size is not None and max_cache_size < 1:
+            raise ValueError("max_cache_size must be ≥ 1 or None (unbounded)")
         cfg = cfg.nullaryremove(binarize=True).unarycycleremove().renumber()
         self.cfg = cfg
 
-        # cache of chart columns
+        # cache of chart columns; LRU with at most `max_cache_size` prefixes
         self._chart = {}
+        self.max_cache_size = max_cache_size
 
         # Topological ordering on the grammar symbols so that we process unary
         # rules in a topological order.
@@ -207,9 +214,6 @@ class Earley:
         if N == 0:
             return sum(r.w for r in self.cfg.rhs[self.cfg.S] if r.body == ())
 
-        # initialize bookkeeping structures
-        self._chart[()] = [self._initial_column]
-
         cols = self.chart(x)
 
         value = cols[N].c_chart.get((0, self.cfg.S), self.cfg.R.zero)
@@ -228,9 +232,12 @@ class Earley:
 
     def chart(self, x):
         x = tuple(x)
-        c = self._chart.get(x)
+        c = self._chart.pop(x, None)  # pop + reinsert marks `x` most recently used
         if c is None:
-            self._chart[x] = c = self._compute_chart(x)
+            c = self._compute_chart(x)
+            if self.max_cache_size is not None and len(self._chart) >= self.max_cache_size:
+                del self._chart[next(iter(self._chart))]  # evict least recently used
+        self._chart[x] = c
         return c
 
     def _compute_chart(self, x):

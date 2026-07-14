@@ -470,3 +470,30 @@ def _generate_strings(cfg, max_len=6):
             if w > 0:
                 strings.append(combo)
     return strings
+
+class TestRescaledRustLRUCache:
+    """LRU-bounded chart cache: capacity, correctness under eviction, reclamation."""
+
+    def test_correctness_under_eviction(self):
+        cfg = examples.papa
+        unbounded = EarleyRescaledRustLM(cfg)
+        bounded = EarleyRescaledRustLM(cfg, max_cache_size=3)
+
+        x = "papa ate the caviar with the spoon".split()
+        prefixes = [tuple(x[:i]) for i in range(len(x) + 1)]
+
+        for _ in range(2):  # second pass revisits evicted prefixes
+            for p in prefixes:
+                assert bounded.p_next(p).metric(unbounded.p_next(p)) <= 1e-10
+                assert bounded.model._rust.cache_len() <= 3
+
+    def test_columns_reclaimed(self):
+        cfg = examples.papa
+        unbounded = EarleyRescaledRustLM(cfg)
+        bounded = EarleyRescaledRustLM(cfg, max_cache_size=2)
+
+        for s in ["papa ate the caviar", "the caviar ate papa", "papa ate the spoon"]:
+            for lm in (unbounded, bounded):
+                lm.p_next(tuple(s.split()))
+
+        assert bounded.model._rust.live_columns() < unbounded.model._rust.live_columns()

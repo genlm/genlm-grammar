@@ -99,23 +99,36 @@ struct RustEarley {
     /// All nonterminal IDs (for is_terminal checks during next_token_weights)
     nonterminals: HashSet<u32>,
 
-    /// Column storage — all columns live here, referenced by index
-    columns: Vec<Column>,
+    /// Column storage — all columns live here, referenced by index.
+    /// A slot is None once reclaimed; its index is recycled via `free_list`.
+    columns: Vec<Option<Column>>,
 
-    /// Chart cache: token prefix → list of column indices
-    chart_cache: HashMap<Vec<String>, Vec<usize>>,
+    /// Per-column count of cache entries referencing it
+    refcounts: Vec<u32>,
+
+    /// Recycled column slots
+    free_list: Vec<usize>,
+
+    /// Chart cache: token prefix → (column indices, last-used stamp)
+    chart_cache: HashMap<Vec<String>, (Vec<usize>, u64)>,
+
+    /// Monotone counter for LRU stamps
+    access_counter: u64,
 
     /// The initial column index (after PREDICT on empty input)
     initial_col_idx: usize,
 
     /// Weight of empty string from start symbol
     empty_weight: f64,
+
+    /// Maximum number of cached prefixes (None = unbounded)
+    max_cache_size: Option<usize>,
 }
 
 #[pymethods]
 impl RustEarley {
     #[new]
-    #[pyo3(signature = (rhs, start, order, order_max, outgoing, first_ys, is_terminal_flags, rest_ys, unit_ys, terminal_to_id, id_to_terminal, nonterminals, empty_weight))]
+    #[pyo3(signature = (rhs, start, order, order_max, outgoing, first_ys, is_terminal_flags, rest_ys, unit_ys, terminal_to_id, id_to_terminal, nonterminals, empty_weight, max_cache_size=None))]
     fn new(
         rhs: HashMap<u32, Vec<(f64, u32)>>,
         start: u32,
@@ -130,6 +143,7 @@ impl RustEarley {
         id_to_terminal: HashMap<u32, String>,
         nonterminals: HashSet<u32>,
         empty_weight: f64,
+        max_cache_size: Option<usize>,
     ) -> Self {
         let mut earley = RustEarley {
             start,
@@ -145,16 +159,21 @@ impl RustEarley {
             id_to_terminal,
             nonterminals,
             columns: Vec::new(),
+            refcounts: Vec::new(),
+            free_list: Vec::new(),
             chart_cache: HashMap::new(),
+            access_counter: 0,
             initial_col_idx: 0,
             empty_weight,
+            max_cache_size,
         };
 
         // Build initial column (k=0) with PREDICT
         let mut col = Column::new(0);
         earley.predict(&mut col);
         earley.initial_col_idx = earley.columns.len();
-        earley.columns.push(col);
+        earley.columns.push(Some(col));
+        earley.refcounts.push(1); // pinned: never reclaimed
 
         earley
     }
@@ -168,7 +187,7 @@ impl RustEarley {
 
         let col_indices = self.chart_inner(&tokens);
         let last_idx = col_indices[n];
-        let col = &self.columns[last_idx];
+        let col = self.col(last_idx);
 
         *col.c_chart.get(&(0, self.start)).unwrap_or(&0.0)
     }
@@ -189,25 +208,88 @@ impl RustEarley {
     fn clear_cache(&mut self) {
         self.chart_cache.clear();
         // Keep only the initial column
-        let initial = self.columns[self.initial_col_idx].clone();
+        let initial = self.columns[self.initial_col_idx].take();
         self.columns.clear();
+        self.refcounts.clear();
+        self.free_list.clear();
         self.initial_col_idx = 0;
         self.columns.push(initial);
+        self.refcounts.push(1);
+    }
+
+    /// Number of cached prefixes (diagnostics).
+    fn cache_len(&self) -> usize {
+        self.chart_cache.len()
+    }
+
+    /// Number of live (non-reclaimed) columns (diagnostics).
+    fn live_columns(&self) -> usize {
+        self.columns.iter().filter(|c| c.is_some()).count()
     }
 }
 
 // ── Internal implementation ───────────────────────────────────────────────────
 
 impl RustEarley {
+    fn col(&self, i: usize) -> &Column {
+        self.columns[i].as_ref().expect("column was reclaimed")
+    }
+
+    fn alloc_column(&mut self, col: Column) -> usize {
+        match self.free_list.pop() {
+            Some(i) => {
+                self.columns[i] = Some(col);
+                i
+            }
+            None => {
+                self.columns.push(Some(col));
+                self.refcounts.push(0);
+                self.columns.len() - 1
+            }
+        }
+    }
+
+    /// Insert a chart into the cache; beyond `max_cache_size`, evict the
+    /// least-recently-used entry and reclaim columns no cached chart references.
+    fn cache_insert(&mut self, key: Vec<String>, indices: &[usize]) {
+        for &i in indices {
+            self.refcounts[i] += 1;
+        }
+        self.access_counter += 1;
+        self.chart_cache.insert(key, (indices.to_vec(), self.access_counter));
+        if let Some(max) = self.max_cache_size {
+            while self.chart_cache.len() > max {
+                let lru_key = self
+                    .chart_cache
+                    .iter()
+                    .min_by_key(|(_, (_, stamp))| *stamp)
+                    .map(|(k, _)| k.clone())
+                    .unwrap();
+                let (evicted, _) = self.chart_cache.remove(&lru_key).unwrap();
+                for i in evicted {
+                    self.refcounts[i] -= 1;
+                    // The initial column is pinned by its extra refcount.
+                    if self.refcounts[i] == 0 {
+                        self.columns[i] = None;
+                        self.free_list.push(i);
+                    }
+                }
+            }
+        }
+    }
+
     fn chart_inner(&mut self, tokens: &[String]) -> Vec<usize> {
         let key = tokens.to_vec();
-        if let Some(indices) = self.chart_cache.get(&key) {
-            return indices.clone();
+        self.access_counter += 1;
+        let stamp = self.access_counter;
+        if let Some(entry) = self.chart_cache.get_mut(&key) {
+            entry.1 = stamp; // mark most recently used
+            return entry.0.clone();
         }
 
         if tokens.is_empty() {
             let result = vec![self.initial_col_idx];
-            self.chart_cache.insert(key, result.clone());
+            self.cache_insert(key, &result);
             return result;
         }
 
@@ -218,21 +300,19 @@ impl RustEarley {
 
         let mut result = prev_indices;
         result.push(new_col_idx);
-        self.chart_cache.insert(key, result.clone());
+        self.cache_insert(key, &result);
         result
     }
 
     fn next_column_inner(&mut self, prev_col_indices: &[usize], token: &str) -> usize {
-        let k = self.columns[*prev_col_indices.last().unwrap()].k + 1;
+        let k = self.col(*prev_col_indices.last().unwrap()).k + 1;
         let mut next_col = Column::new(k);
 
         let token_id = match self.terminal_to_id.get(token) {
             Some(&id) => id,
-            None => return { // Unknown token → empty column
-                let idx = self.columns.len();
+            None => { // Unknown token → empty column
                 self.predict(&mut next_col);
-                self.columns.push(next_col);
-                idx
+                return self.alloc_column(next_col);
             }
         };
 
@@ -240,7 +320,7 @@ impl RustEarley {
         // Clone the relevant waiting_for list.
         let prev_col_idx = *prev_col_indices.last().unwrap();
 
-        let scan_items: Vec<(u32, u32, u32)> = self.columns[prev_col_idx]
+        let scan_items: Vec<(u32, u32, u32)> = self.col(prev_col_idx)
             .waiting_for
             .get(&token_id)
             .cloned()
@@ -248,7 +328,7 @@ impl RustEarley {
 
         let scan_weights: Vec<f64> = scan_items
             .iter()
-            .map(|item| self.columns[prev_col_idx].i_chart[item])
+            .map(|item| self.col(prev_col_idx).i_chart[item])
             .collect();
 
         // SCAN: phrase(I, X/Ys, K) += phrase(I, X/[token|Ys], J) * word(J, token, K)
@@ -273,7 +353,7 @@ impl RustEarley {
 
             let col_j_idx = prev_col_indices[j as usize];
 
-            let customers: Vec<(u32, u32, u32)> = self.columns[col_j_idx]
+            let customers: Vec<(u32, u32, u32)> = self.col(col_j_idx)
                 .waiting_for
                 .get(&y)
                 .cloned()
@@ -281,7 +361,7 @@ impl RustEarley {
 
             let customer_weights: Vec<f64> = customers
                 .iter()
-                .map(|item| self.columns[col_j_idx].i_chart[item])
+                .map(|item| self.col(col_j_idx).i_chart[item])
                 .collect();
 
             for (customer, &cw) in customers.iter().zip(customer_weights.iter()) {
@@ -299,9 +379,7 @@ impl RustEarley {
         // PREDICT
         self.predict(&mut next_col);
 
-        let idx = self.columns.len();
-        self.columns.push(next_col);
-        idx
+        self.alloc_column(next_col)
     }
 
     /// The innermost update function. Called extremely frequently.
@@ -403,7 +481,7 @@ impl RustEarley {
 
     fn next_token_weights_inner(&self, col_indices: &[usize]) -> HashMap<String, f64> {
         let last_idx = *col_indices.last().unwrap();
-        let col = &self.columns[last_idx];
+        let col = self.col(last_idx);
 
         // q(0, S) = 1.0
         let mut q: HashMap<(u32, u32), f64> = HashMap::new();
@@ -476,7 +554,7 @@ impl RustEarley {
                         if parent.cursor < parent.edges.len() {
                             let (pi, px, _) = parent.edges[parent.cursor];
                             let col_j_idx = col_indices[j as usize];
-                            let iw = self.columns[col_j_idx].i_chart
+                            let iw = self.col(col_j_idx).i_chart
                                 .get(&(pi, px, parent.edges[parent.cursor].2))
                                 .copied()
                                 .unwrap_or(0.0);
@@ -488,7 +566,7 @@ impl RustEarley {
                 }
 
                 let col_j_idx = col_indices[j as usize];
-                let col_j = &self.columns[col_j_idx];
+                let col_j = self.col(col_j_idx);
                 let edges: Vec<(u32, u32, u32)> = col_j
                     .waiting_for
                     .get(&y)
@@ -517,7 +595,7 @@ impl RustEarley {
                         let (pi, px, pys) = parent.edges[parent.cursor];
                         let (pj, _py) = parent.node;
                         let col_pj_idx = col_indices[pj as usize];
-                        let iw = self.columns[col_pj_idx].i_chart
+                        let iw = self.col(col_pj_idx).i_chart
                             .get(&(pi, px, pys))
                             .copied()
                             .unwrap_or(0.0);
@@ -534,7 +612,7 @@ impl RustEarley {
                     // Neighbor already computed
                     let (pi, px, pys) = frame.edges[frame.cursor];
                     let col_j_idx = col_indices[j as usize];
-                    let iw = self.columns[col_j_idx].i_chart
+                    let iw = self.col(col_j_idx).i_chart
                         .get(&(pi, px, pys))
                         .copied()
                         .unwrap_or(0.0);
@@ -596,16 +674,20 @@ struct RustEarleyRescaled {
     id_to_terminal: HashMap<u32, String>,
     nonterminals: HashSet<u32>,
 
-    columns: Vec<RescaledColumn>,
-    chart_cache: HashMap<Vec<String>, Vec<usize>>,
+    columns: Vec<Option<RescaledColumn>>,
+    refcounts: Vec<u32>,
+    free_list: Vec<usize>,
+    chart_cache: HashMap<Vec<String>, (Vec<usize>, u64)>,
+    access_counter: u64,
     initial_col_idx: usize,
     empty_weight: f64,
+    max_cache_size: Option<usize>,
 }
 
 #[pymethods]
 impl RustEarleyRescaled {
     #[new]
-    #[pyo3(signature = (rhs, start, order, order_max, outgoing, first_ys, is_terminal_flags, rest_ys, unit_ys, terminal_to_id, id_to_terminal, nonterminals, empty_weight))]
+    #[pyo3(signature = (rhs, start, order, order_max, outgoing, first_ys, is_terminal_flags, rest_ys, unit_ys, terminal_to_id, id_to_terminal, nonterminals, empty_weight, max_cache_size=None))]
     fn new(
         rhs: HashMap<u32, Vec<(f64, u32)>>,
         start: u32,
@@ -620,6 +702,7 @@ impl RustEarleyRescaled {
         id_to_terminal: HashMap<u32, String>,
         nonterminals: HashSet<u32>,
         empty_weight: f64,
+        max_cache_size: Option<usize>,
     ) -> Self {
         let mut earley = RustEarleyRescaled {
             start,
@@ -635,16 +718,21 @@ impl RustEarleyRescaled {
             id_to_terminal,
             nonterminals,
             columns: Vec::new(),
+            refcounts: Vec::new(),
+            free_list: Vec::new(),
             chart_cache: HashMap::new(),
+            access_counter: 0,
             initial_col_idx: 0,
             empty_weight,
+            max_cache_size,
         };
 
         let mut col = RescaledColumn::new(0);
         earley.predict(&mut col);
         col.rescale = 1.0;
         earley.initial_col_idx = earley.columns.len();
-        earley.columns.push(col);
+        earley.columns.push(Some(col));
+        earley.refcounts.push(1); // pinned: never reclaimed
 
         earley
     }
@@ -658,7 +746,7 @@ impl RustEarleyRescaled {
 
         let col_indices = self.chart_inner(&tokens);
         let last_idx = col_indices[n];
-        let col = &self.columns[last_idx];
+        let col = self.col(last_idx);
         let value = *col.c_chart.get(&(0, self.start)).unwrap_or(&0.0);
 
         // Divide by product of rescaling coefficients for cols[0..n]
@@ -675,7 +763,7 @@ impl RustEarleyRescaled {
 
         let col_indices = self.chart_inner(&tokens);
         let last_idx = col_indices[n];
-        let col = &self.columns[last_idx];
+        let col = self.col(last_idx);
         let value = *col.c_chart.get(&(0, self.start)).unwrap_or(&0.0);
 
         value.ln() - self.log_rescale(&col_indices, 0, n)
@@ -702,20 +790,80 @@ impl RustEarleyRescaled {
 
     fn clear_cache(&mut self) {
         self.chart_cache.clear();
-        let initial = self.columns[self.initial_col_idx].clone();
+        let initial = self.columns[self.initial_col_idx].take();
         self.columns.clear();
+        self.refcounts.clear();
+        self.free_list.clear();
         self.initial_col_idx = 0;
         self.columns.push(initial);
+        self.refcounts.push(1);
+    }
+
+    /// Number of cached prefixes (diagnostics).
+    fn cache_len(&self) -> usize {
+        self.chart_cache.len()
+    }
+
+    /// Number of live (non-reclaimed) columns (diagnostics).
+    fn live_columns(&self) -> usize {
+        self.columns.iter().filter(|c| c.is_some()).count()
     }
 }
 
 // ── Rescaled internal implementation ─────────────────────────────────────────
 
 impl RustEarleyRescaled {
+    fn col(&self, i: usize) -> &RescaledColumn {
+        self.columns[i].as_ref().expect("column was reclaimed")
+    }
+
+    fn alloc_column(&mut self, col: RescaledColumn) -> usize {
+        match self.free_list.pop() {
+            Some(i) => {
+                self.columns[i] = Some(col);
+                i
+            }
+            None => {
+                self.columns.push(Some(col));
+                self.refcounts.push(0);
+                self.columns.len() - 1
+            }
+        }
+    }
+
+    /// Insert a chart into the cache; beyond `max_cache_size`, evict the
+    /// least-recently-used entry and reclaim columns no cached chart references.
+    fn cache_insert(&mut self, key: Vec<String>, indices: &[usize]) {
+        for &i in indices {
+            self.refcounts[i] += 1;
+        }
+        self.access_counter += 1;
+        self.chart_cache.insert(key, (indices.to_vec(), self.access_counter));
+        if let Some(max) = self.max_cache_size {
+            while self.chart_cache.len() > max {
+                let lru_key = self
+                    .chart_cache
+                    .iter()
+                    .min_by_key(|(_, (_, stamp))| *stamp)
+                    .map(|(k, _)| k.clone())
+                    .unwrap();
+                let (evicted, _) = self.chart_cache.remove(&lru_key).unwrap();
+                for i in evicted {
+                    self.refcounts[i] -= 1;
+                    // The initial column is pinned by its extra refcount.
+                    if self.refcounts[i] == 0 {
+                        self.columns[i] = None;
+                        self.free_list.push(i);
+                    }
+                }
+            }
+        }
+    }
+
     fn rescale_product(&self, col_indices: &[usize], from: usize, to: usize) -> f64 {
         let mut product = 1.0f64;
         for &idx in &col_indices[from..to] {
-            product *= self.columns[idx].rescale;
+            product *= self.col(idx).rescale;
         }
         product
     }
@@ -723,20 +871,23 @@ impl RustEarleyRescaled {
     fn log_rescale(&self, col_indices: &[usize], from: usize, to: usize) -> f64 {
         let mut total = 0.0f64;
         for &idx in &col_indices[from..to] {
-            total += self.columns[idx].rescale.ln();
+            total += self.col(idx).rescale.ln();
         }
         total
     }
 
     fn chart_inner(&mut self, tokens: &[String]) -> Vec<usize> {
         let key = tokens.to_vec();
-        if let Some(indices) = self.chart_cache.get(&key) {
-            return indices.clone();
+        self.access_counter += 1;
+        let stamp = self.access_counter;
+        if let Some(entry) = self.chart_cache.get_mut(&key) {
+            entry.1 = stamp; // mark most recently used
+            return entry.0.clone();
         }
 
         if tokens.is_empty() {
             let result = vec![self.initial_col_idx];
-            self.chart_cache.insert(key, result.clone());
+            self.cache_insert(key, &result);
             return result;
         }
 
@@ -746,30 +897,28 @@ impl RustEarleyRescaled {
 
         let mut result = prev_indices;
         result.push(new_col_idx);
-        self.chart_cache.insert(key, result.clone());
+        self.cache_insert(key, &result);
         result
     }
 
     fn next_column_inner(&mut self, prev_col_indices: &[usize], token: &str) -> usize {
         let prev_col_idx = *prev_col_indices.last().unwrap();
-        let k = self.columns[prev_col_idx].k + 1;
+        let k = self.col(prev_col_idx).k + 1;
         let mut next_col = RescaledColumn::new(k);
 
         let token_id = match self.terminal_to_id.get(token) {
             Some(&id) => id,
             None => {
-                let idx = self.columns.len();
                 self.predict(&mut next_col);
                 next_col.rescale = 1.0;
-                self.columns.push(next_col);
-                return idx;
+                return self.alloc_column(next_col);
             }
         };
 
         // Get rescale factor from previous column
-        let prev_rescale = self.columns[prev_col_idx].rescale;
+        let prev_rescale = self.col(prev_col_idx).rescale;
 
-        let scan_items: Vec<(u32, u32, u32)> = self.columns[prev_col_idx]
+        let scan_items: Vec<(u32, u32, u32)> = self.col(prev_col_idx)
             .waiting_for
             .get(&token_id)
             .cloned()
@@ -777,7 +926,7 @@ impl RustEarleyRescaled {
 
         let scan_weights: Vec<f64> = scan_items
             .iter()
-            .map(|item| self.columns[prev_col_idx].i_chart[item])
+            .map(|item| self.col(prev_col_idx).i_chart[item])
             .collect();
 
         // SCAN: multiply by prev_col.rescale for numerical stability
@@ -802,7 +951,7 @@ impl RustEarleyRescaled {
 
             let col_j_idx = prev_col_indices[j as usize];
 
-            let customers: Vec<(u32, u32, u32)> = self.columns[col_j_idx]
+            let customers: Vec<(u32, u32, u32)> = self.col(col_j_idx)
                 .waiting_for
                 .get(&y)
                 .cloned()
@@ -810,7 +959,7 @@ impl RustEarleyRescaled {
 
             let customer_weights: Vec<f64> = customers
                 .iter()
-                .map(|item| self.columns[col_j_idx].i_chart[item])
+                .map(|item| self.col(col_j_idx).i_chart[item])
                 .collect();
 
             for (customer, &cw) in customers.iter().zip(customer_weights.iter()) {
@@ -829,7 +978,7 @@ impl RustEarleyRescaled {
         self.predict(&mut next_col);
 
         // Compute rescaling coefficient
-        let num = self.columns[prev_col_idx].c_chart
+        let num = self.col(prev_col_idx).c_chart
             .get(&(0, self.start)).copied().unwrap_or(0.0);
         let den = next_col.c_chart
             .get(&(0, self.start)).copied().unwrap_or(0.0);
@@ -840,9 +989,7 @@ impl RustEarleyRescaled {
             next_col.rescale = num / den * prev_rescale;
         }
 
-        let idx = self.columns.len();
-        self.columns.push(next_col);
-        idx
+        self.alloc_column(next_col)
     }
 
     #[inline(always)]
@@ -929,7 +1076,7 @@ impl RustEarleyRescaled {
 
     fn next_token_weights_inner(&self, col_indices: &[usize]) -> HashMap<String, f64> {
         let last_idx = *col_indices.last().unwrap();
-        let col = &self.columns[last_idx];
+        let col = self.col(last_idx);
 
         let mut q: HashMap<(u32, u32), f64> = HashMap::new();
         q.insert((0, self.start), 1.0);
@@ -994,7 +1141,7 @@ impl RustEarleyRescaled {
                         if parent.cursor < parent.edges.len() {
                             let (pi, px, _) = parent.edges[parent.cursor];
                             let col_j_idx = col_indices[j as usize];
-                            let iw = self.columns[col_j_idx].i_chart
+                            let iw = self.col(col_j_idx).i_chart
                                 .get(&(pi, px, parent.edges[parent.cursor].2))
                                 .copied()
                                 .unwrap_or(0.0);
@@ -1006,7 +1153,7 @@ impl RustEarleyRescaled {
                 }
 
                 let col_j_idx = col_indices[j as usize];
-                let col_j = &self.columns[col_j_idx];
+                let col_j = self.col(col_j_idx);
                 let edges: Vec<(u32, u32, u32)> = col_j
                     .waiting_for
                     .get(&y)
@@ -1032,7 +1179,7 @@ impl RustEarleyRescaled {
                         let (pi, px, pys) = parent.edges[parent.cursor];
                         let (pj, _py) = parent.node;
                         let col_pj_idx = col_indices[pj as usize];
-                        let iw = self.columns[col_pj_idx].i_chart
+                        let iw = self.col(col_pj_idx).i_chart
                             .get(&(pi, px, pys))
                             .copied()
                             .unwrap_or(0.0);
@@ -1047,7 +1194,7 @@ impl RustEarleyRescaled {
                 if let Some(&cached) = q.get(&neighbor) {
                     let (pi, px, pys) = frame.edges[frame.cursor];
                     let col_j_idx = col_indices[j as usize];
-                    let iw = self.columns[col_j_idx].i_chart
+                    let iw = self.col(col_j_idx).i_chart
                         .get(&(pi, px, pys))
                         .copied()
                         .unwrap_or(0.0);

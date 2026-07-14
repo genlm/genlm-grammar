@@ -14,6 +14,7 @@ from genlm.grammar.semiring import Float
 from genlm.grammar.cfg import CFG
 from genlm.grammar.linear import WeightedGraph
 from genlm.grammar.semiring import Boolean
+from genlm.grammar.util import DEFAULT_MAX_CACHE_SIZE
 
 try:
     from genlm_earley import RustEarleyRescaled
@@ -29,14 +30,21 @@ class EarleyRescaledRust:
     the hot path to a Rust implementation via PyO3.
 
     Note: preprocessing does NOT call .trim() (matching the Python rescaled version).
+
+    `max_cache_size` bounds the number of cached prefixes (LRU eviction);
+    defaults to 10,000, None means unbounded. Note: eviction (like clear_cache)
+    invalidates chart handles returned by earlier `chart()` calls, so consume
+    a handle before the next `chart()`/`parse()` call.
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, max_cache_size=DEFAULT_MAX_CACHE_SIZE):
         if RustEarleyRescaled is None:
             raise ImportError(
                 "genlm_earley Rust extension not found. "
                 "Build with: cd rust && maturin develop --release"
             )
+        if max_cache_size is not None and max_cache_size < 1:
+            raise ValueError("max_cache_size must be ≥ 1 or None (unbounded)")
 
         # Note: no .trim() — matches Python rescaled Earley
         cfg = cfg.nullaryremove(binarize=True).unarycycleremove().renumber()
@@ -126,6 +134,7 @@ class EarleyRescaledRust:
             id_to_terminal=id_to_terminal,
             nonterminals=nonterminals,
             empty_weight=empty_weight,
+            max_cache_size=max_cache_size,
         )
 
         self._terminal_to_id = terminal_to_id
@@ -172,11 +181,11 @@ class EarleyRescaledRust:
 class EarleyRescaledRustLM(LM):
     """Language model using the Rust rescaled Earley backend."""
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, max_cache_size=DEFAULT_MAX_CACHE_SIZE):
         if EOS not in cfg.V:
             cfg = add_EOS(cfg)
         self.cfg = cfg
-        self.model = EarleyRescaledRust(cfg.prefix_grammar)
+        self.model = EarleyRescaledRust(cfg.prefix_grammar, max_cache_size=max_cache_size)
         super().__init__(V=cfg.V, eos=EOS)
 
     def p_next(self, context):

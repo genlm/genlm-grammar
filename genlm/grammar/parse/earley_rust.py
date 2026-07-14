@@ -12,6 +12,7 @@ from genlm.grammar.cfglm import EOS, add_EOS, locally_normalize
 from genlm.grammar.lm import LM
 from genlm.grammar.semiring import Float
 from genlm.grammar.cfg import CFG
+from genlm.grammar.util import DEFAULT_MAX_CACHE_SIZE
 
 try:
     from genlm_earley import RustEarley
@@ -28,14 +29,21 @@ class EarleyRust:
 
     The __init__ does the same grammar preprocessing as the Python version,
     then serialises the lookup tables into the Rust RustEarley object.
+
+    `max_cache_size` bounds the number of cached prefixes (LRU eviction);
+    defaults to 10,000, None means unbounded. Note: eviction (like clear_cache)
+    invalidates chart handles returned by earlier `chart()` calls, so consume
+    a handle before the next `chart()`/`parse()` call.
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, max_cache_size=DEFAULT_MAX_CACHE_SIZE):
         if RustEarley is None:
             raise ImportError(
                 "genlm_earley Rust extension not found. "
                 "Build with: cd rust && maturin develop --release"
             )
+        if max_cache_size is not None and max_cache_size < 1:
+            raise ValueError("max_cache_size must be ≥ 1 or None (unbounded)")
 
         cfg = cfg.nullaryremove(binarize=True).unarycycleremove().renumber().trim()
         self.cfg = cfg
@@ -128,6 +136,7 @@ class EarleyRust:
             id_to_terminal=id_to_terminal,
             nonterminals=nonterminals,
             empty_weight=empty_weight,
+            max_cache_size=max_cache_size,
         )
 
         self._terminal_to_id = terminal_to_id
@@ -170,11 +179,11 @@ class EarleyRust:
 class EarleyRustLM(LM):
     """Language model using the Rust Earley backend."""
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, max_cache_size=DEFAULT_MAX_CACHE_SIZE):
         if EOS not in cfg.V:
             cfg = add_EOS(cfg)
         self.cfg = cfg
-        self.model = EarleyRust(cfg.prefix_grammar)
+        self.model = EarleyRust(cfg.prefix_grammar, max_cache_size=max_cache_size)
         super().__init__(V=cfg.V, eos=EOS)
 
     def p_next(self, context):

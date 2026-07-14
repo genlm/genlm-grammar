@@ -1,6 +1,10 @@
 import html
 from IPython.display import HTML, display
 
+# Default bound on the number of prefixes kept in a parser's chart cache
+# (LRU eviction). Pass max_cache_size=None for an unbounded cache.
+DEFAULT_MAX_CACHE_SIZE = 10_000
+
 
 def format_table(rows, headings=None):
     def fmt(x):

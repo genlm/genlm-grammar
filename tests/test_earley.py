@@ -465,6 +465,38 @@ def test_mystery():
 
   
 
+def test_default_cache_bound():
+    from genlm.grammar.util import DEFAULT_MAX_CACHE_SIZE
+
+    assert DEFAULT_MAX_CACHE_SIZE == 10_000
+    assert EarleyLM(examples.papa).model.max_cache_size == 10_000
+
+
+def test_lru_cache():
+    cfg = examples.papa
+    unbounded = EarleyLM(cfg)
+    bounded = EarleyLM(cfg, max_cache_size=3)
+
+    x = "papa ate the caviar with the spoon".split()
+    prefixes = [tuple(x[:i]) for i in range(len(x) + 1)]
+
+    for _ in range(2):  # second pass revisits evicted prefixes
+        for p in prefixes:
+            assert bounded.p_next(p).metric(unbounded.p_next(p)) <= 1e-10
+            assert len(bounded.model._chart) <= 3
+
+
+def test_lru_eviction_order():
+    E = EarleyLM(examples.papa, max_cache_size=3).model
+    a = ("papa",)
+    b = ("papa", "ate")
+    E.chart(b)  # cache: (), a, b
+    E.chart(a)  # a becomes most recently used
+    E.chart(("the",))  # re-inserts (), then evicts the LRU entry: b
+    assert b not in E._chart
+    assert a in E._chart
+
+
 if __name__ == "__main__":
     from arsenal import testing_framework
 

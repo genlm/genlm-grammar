@@ -5,6 +5,7 @@ Fast computation of the posterior distrubtion over the next word in a WCFG langu
 from genlm.grammar.cfg import CFG, _gen_nt
 from genlm.grammar.lm import LM
 from genlm.grammar.semiring import Boolean, Float
+from genlm.grammar.util import DEFAULT_MAX_CACHE_SIZE
 
 
 EOS = "▪"
@@ -75,12 +76,15 @@ class BoolCFGLM(LM):
         ValueError: If alg is not 'earley' or 'cky'
     """
 
-    def __init__(self, cfg, alg="earley"):
+    def __init__(self, cfg, alg="earley", max_cache_size=DEFAULT_MAX_CACHE_SIZE):
         """Initialize a BoolCFGLM.
 
         Args:
             cfg (CFG): The context-free grammar to use as the language model
             alg (str): Parsing algorithm to use - either 'earley' or 'cky'
+            max_cache_size (int, optional): Maximum number of prefixes kept in the
+                chart cache (LRU eviction). Defaults to 10,000; None means
+                unbounded. Earley only.
 
         Raises:
             ValueError: If alg is not 'earley' or 'cky'
@@ -92,8 +96,10 @@ class BoolCFGLM(LM):
         if alg == "earley":
             from genlm.grammar.parse.earley import Earley
 
-            self.model = Earley(cfg.prefix_grammar)
+            self.model = Earley(cfg.prefix_grammar, max_cache_size=max_cache_size)
         elif alg == "cky":
+            if max_cache_size != DEFAULT_MAX_CACHE_SIZE:
+                raise ValueError("max_cache_size is only supported with alg='earley'")
             from genlm.grammar.parse.cky import CKYLM
 
             self.model = CKYLM(cfg)
