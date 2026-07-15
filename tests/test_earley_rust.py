@@ -10,11 +10,17 @@ from arsenal import colors
 
 import examples
 from genlm.grammar import add_EOS, EOS, CFG
-from genlm.grammar.semiring import Float
+from genlm.grammar.semiring import Boolean, Float
 from genlm.grammar.parse.earley import Earley, EarleyLM
 from genlm.grammar.parse.cky import CKYLM, IncrementalCKY
 
-from genlm.grammar.parse.earley_rust import EarleyRust, EarleyRustLM
+from genlm.grammar.parse.earley_rust import (
+    EarleyRust,
+    EarleyRustLM,
+    EarleyBoolRust,
+    EarleyBoolRustLM,
+)
+from genlm.grammar.cfglm import BoolCFGLM
 
 
 def assert_equal(have, want, tol=1e-10):
@@ -468,3 +474,74 @@ class TestRustLRUCache:
                 lm.p_next(tuple(s.split()))
 
         assert bounded.model._rust.live_columns() < unbounded.model._rust.live_columns()
+
+class TestRustBool:
+    """Boolean-semiring Rust engine vs BoolCFGLM (Python Earley, Boolean)."""
+
+    def test_matches_boolcfglm(self):
+        cfg = examples.papa
+        want = BoolCFGLM(cfg)
+        have = EarleyBoolRustLM(cfg)
+        bounded = EarleyBoolRustLM(cfg, max_cache_size=2)
+
+        x = "papa ate the caviar with the spoon".split()
+        for i in range(len(x) + 1):
+            p = tuple(x[:i])
+            assert have.p_next(p).metric(want.p_next(p)) <= 1e-10
+            assert bounded.p_next(p).metric(want.p_next(p)) <= 1e-10
+
+    def test_cyclic_grammar(self):
+        # Unary-cyclic and ambiguous: Boolean treesums converge where 0/1
+        # Float weights would diverge — exercises the bool engine end to end.
+        cfg = CFG.from_string(
+            """
+            0.5: S → A1
+            0.5: S → A2
+            0.5: A1 → B1
+            0.5: B1 → C1
+            0.5: C1 → A1
+            0.5: A2 → B2
+            0.5: B2 → C2
+            0.5: C2 → A2
+            1.0: C1 → C
+            1.0: C2 → C
+            0.5: C → c
+            """,
+            Float,
+        )
+        want = BoolCFGLM(cfg)
+        have = EarleyBoolRustLM(cfg)
+        for p in [(), ("c",)]:
+            assert have.p_next(p).metric(want.p_next(p)) <= 1e-10
+
+    def test_bool_parse_differential(self):
+        # Systematic membership check: every string over {a,b} up to length 5.
+        from itertools import product
+
+        cfg = examples.palindrome_ab.map_values(lambda w: Boolean(w > 0), Boolean)
+        rust = EarleyBoolRust(cfg)
+        python = Earley(cfg)
+        for n in range(6):
+            for x in product("ab", repeat=n):
+                assert rust(x) == python(x).score, x
+
+    def test_empty_language(self):
+        # S → a S never terminates: the language (and every prefix set) is empty.
+        cfg = CFG.from_string("1.0: S → a S", Float)
+        want = BoolCFGLM(cfg)
+        have = EarleyBoolRustLM(cfg)
+        for p in [(), ("a",)]:
+            assert have.p_next(p).metric(want.p_next(p)) <= 1e-10
+
+
+class TestStaleHandle:
+    """Chart handles must expire loudly after eviction, never alias reused slots."""
+
+    def test_stale_handle_raises(self):
+        lm = EarleyRustLM(examples.papa, max_cache_size=1)
+        h = lm.model.chart(("papa",))
+        lm.model.chart(("the",))  # different sentence: evicts ("papa",), reclaims its column
+        with pytest.raises(ValueError, match="expired chart handle"):
+            lm.model.next_token_weights(h)
+        # a fresh handle for the same prefix works again
+        assert len(lm.p_next(("papa",))) > 0

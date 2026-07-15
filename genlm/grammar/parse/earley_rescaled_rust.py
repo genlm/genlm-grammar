@@ -32,9 +32,9 @@ class EarleyRescaledRust:
     Note: preprocessing does NOT call .trim() (matching the Python rescaled version).
 
     `max_cache_size` bounds the number of cached prefixes (LRU eviction);
-    defaults to 10,000, None means unbounded. Note: eviction (like clear_cache)
-    invalidates chart handles returned by earlier `chart()` calls, so consume
-    a handle before the next `chart()`/`parse()` call.
+    defaults to 10,000, None means unbounded. Eviction (like clear_cache)
+    invalidates chart handles returned by earlier `chart()` calls; using an
+    expired handle raises ValueError rather than returning wrong results.
     """
 
     def __init__(self, cfg, max_cache_size=DEFAULT_MAX_CACHE_SIZE):
@@ -158,7 +158,6 @@ class EarleyRescaledRust:
     def next_token_weights(self, col_indices):
         """Compute next-token weights from a chart. Returns a normalized Chart."""
         raw = self._rust.next_token_weights(col_indices)
-        from genlm.grammar.chart import Chart
         result = self.cfg.R.chart()
         for terminal_str, weight in raw.items():
             result[terminal_str] = self.cfg.R(weight)

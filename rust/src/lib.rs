@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{BTreeMap, BinaryHeap, HashMap, HashSet};
 use std::cmp::Reverse;
 
 // ── Symbol: unified u32 encoding ──────────────────────────────────────────────
@@ -9,6 +9,44 @@ use std::cmp::Reverse;
 // all-integer with no string comparisons.
 
 const SENTINEL: u32 = u32::MAX;
+
+// ── Semiring abstraction ──────────────────────────────────────────────────────
+// The Earley engine touches weights only through ⊕ (add), ⊗ (mul), 0, and 1,
+// so it is generic over any semiring. PyO3 classes cannot be generic, so each
+// instantiation gets a thin concrete shell below.
+
+trait Semiring: Copy + PartialEq {
+    const ZERO: Self;
+    const ONE: Self;
+    fn add(self, other: Self) -> Self;
+    fn mul(self, other: Self) -> Self;
+}
+
+impl Semiring for f64 {
+    const ZERO: f64 = 0.0;
+    const ONE: f64 = 1.0;
+    #[inline(always)]
+    fn add(self, other: f64) -> f64 {
+        self + other
+    }
+    #[inline(always)]
+    fn mul(self, other: f64) -> f64 {
+        self * other
+    }
+}
+
+impl Semiring for bool {
+    const ZERO: bool = false;
+    const ONE: bool = true;
+    #[inline(always)]
+    fn add(self, other: bool) -> bool {
+        self | other
+    }
+    #[inline(always)]
+    fn mul(self, other: bool) -> bool {
+        self & other
+    }
+}
 
 // ── Column ────────────────────────────────────────────────────────────────────
 // An Earley chart column at position k.
@@ -21,14 +59,14 @@ const SENTINEL: u32 = u32::MAX;
 // immediately before Y.
 
 #[derive(Clone)]
-struct Column {
+struct Column<W> {
     k: u32,
-    c_chart: HashMap<(u32, u32), f64>,
-    i_chart: HashMap<(u32, u32, u32), f64>,
+    c_chart: HashMap<(u32, u32), W>,
+    i_chart: HashMap<(u32, u32, u32), W>,
     waiting_for: HashMap<u32, Vec<(u32, u32, u32)>>,
 }
 
-impl Column {
+impl<W> Column<W> {
     fn new(k: u32) -> Self {
         Column {
             k,
@@ -62,15 +100,14 @@ impl PartialOrd for QItem {
     }
 }
 
-// ── Core Earley Engine ────────────────────────────────────────────────────────
+// ── Core Earley Engine (generic over the semiring) ────────────────────────────
 
-#[pyclass]
-struct RustEarley {
+struct EarleyCore<W: Semiring> {
     start: u32,
     order_max: u32,
 
     /// Nonterminal X → Vec<(weight, Ys_code)>
-    rhs: HashMap<u32, Vec<(f64, u32)>>,
+    rhs: HashMap<u32, Vec<(W, u32)>>,
 
     /// Nonterminal → topological order bucket
     order: HashMap<u32, u32>,
@@ -101,16 +138,24 @@ struct RustEarley {
 
     /// Column storage — all columns live here, referenced by index.
     /// A slot is None once reclaimed; its index is recycled via `free_list`.
-    columns: Vec<Option<Column>>,
+    columns: Vec<Option<Column<W>>>,
 
     /// Per-column count of cache entries referencing it
     refcounts: Vec<u32>,
+
+    /// Per-column generation, bumped when a slot is reclaimed; used to
+    /// detect expired chart handles instead of silently aliasing them
+    generations: Vec<u64>,
 
     /// Recycled column slots
     free_list: Vec<usize>,
 
     /// Chart cache: token prefix → (column indices, last-used stamp)
     chart_cache: HashMap<Vec<String>, (Vec<usize>, u64)>,
+
+    /// Eviction order: last-used stamp → cache key (stamps are unique),
+    /// giving O(log n) promotion and eviction
+    lru_order: BTreeMap<u64, Vec<String>>,
 
     /// Monotone counter for LRU stamps
     access_counter: u64,
@@ -119,18 +164,15 @@ struct RustEarley {
     initial_col_idx: usize,
 
     /// Weight of empty string from start symbol
-    empty_weight: f64,
+    empty_weight: W,
 
     /// Maximum number of cached prefixes (None = unbounded)
     max_cache_size: Option<usize>,
 }
 
-#[pymethods]
-impl RustEarley {
-    #[new]
-    #[pyo3(signature = (rhs, start, order, order_max, outgoing, first_ys, is_terminal_flags, rest_ys, unit_ys, terminal_to_id, id_to_terminal, nonterminals, empty_weight, max_cache_size=None))]
+impl<W: Semiring> EarleyCore<W> {
     fn new(
-        rhs: HashMap<u32, Vec<(f64, u32)>>,
+        rhs: HashMap<u32, Vec<(W, u32)>>,
         start: u32,
         order: HashMap<u32, u32>,
         order_max: u32,
@@ -142,10 +184,10 @@ impl RustEarley {
         terminal_to_id: HashMap<String, u32>,
         id_to_terminal: HashMap<u32, String>,
         nonterminals: HashSet<u32>,
-        empty_weight: f64,
+        empty_weight: W,
         max_cache_size: Option<usize>,
     ) -> Self {
-        let mut earley = RustEarley {
+        let mut earley = EarleyCore {
             start,
             order_max,
             rhs,
@@ -160,8 +202,10 @@ impl RustEarley {
             nonterminals,
             columns: Vec::new(),
             refcounts: Vec::new(),
+            generations: Vec::new(),
             free_list: Vec::new(),
             chart_cache: HashMap::new(),
+            lru_order: BTreeMap::new(),
             access_counter: 0,
             initial_col_idx: 0,
             empty_weight,
@@ -174,12 +218,13 @@ impl RustEarley {
         earley.initial_col_idx = earley.columns.len();
         earley.columns.push(Some(col));
         earley.refcounts.push(1); // pinned: never reclaimed
+        earley.generations.push(0);
 
         earley
     }
 
     /// Parse a token sequence, return its weight (prefix probability).
-    fn parse(&mut self, tokens: Vec<String>) -> f64 {
+    fn parse(&mut self, tokens: Vec<String>) -> W {
         let n = tokens.len();
         if n == 0 {
             return self.empty_weight;
@@ -189,7 +234,7 @@ impl RustEarley {
         let last_idx = col_indices[n];
         let col = self.col(last_idx);
 
-        *col.c_chart.get(&(0, self.start)).unwrap_or(&0.0)
+        col.c_chart.get(&(0, self.start)).copied().unwrap_or(W::ZERO)
     }
 
     /// Compute chart for a token sequence. Returns an opaque chart ID
@@ -200,21 +245,25 @@ impl RustEarley {
 
     /// Compute next-token weights given a chart (list of column indices).
     /// Returns a dict: terminal_string → weight.
-    fn next_token_weights(&self, col_indices: Vec<usize>) -> HashMap<String, f64> {
+    fn next_token_weights(&self, col_indices: Vec<usize>) -> HashMap<String, W> {
         self.next_token_weights_inner(&col_indices)
     }
 
     /// Clear the chart cache.
     fn clear_cache(&mut self) {
         self.chart_cache.clear();
-        // Keep only the initial column
+        self.lru_order.clear();
+        // Keep only the initial column (its generation is preserved)
         let initial = self.columns[self.initial_col_idx].take();
+        let gen = self.generations[self.initial_col_idx];
         self.columns.clear();
         self.refcounts.clear();
+        self.generations.clear();
         self.free_list.clear();
         self.initial_col_idx = 0;
         self.columns.push(initial);
         self.refcounts.push(1);
+        self.generations.push(gen);
     }
 
     /// Number of cached prefixes (diagnostics).
@@ -230,12 +279,36 @@ impl RustEarley {
 
 // ── Internal implementation ───────────────────────────────────────────────────
 
-impl RustEarley {
-    fn col(&self, i: usize) -> &Column {
+impl<W: Semiring> EarleyCore<W> {
+    fn col(&self, i: usize) -> &Column<W> {
         self.columns[i].as_ref().expect("column was reclaimed")
     }
 
-    fn alloc_column(&mut self, col: Column) -> usize {
+    /// Tag arena indices with their slot generations → an expiry-checkable handle.
+    fn tag_handle(&self, indices: &[usize]) -> Vec<(usize, u64)> {
+        indices.iter().map(|&i| (i, self.generations[i])).collect()
+    }
+
+    /// Check a handle from `tag_handle`; errors if any column was reclaimed.
+    fn validate_handle(&self, handle: &[(usize, u64)]) -> PyResult<Vec<usize>> {
+        handle
+            .iter()
+            .map(|&(i, g)| {
+                if i < self.columns.len()
+                    && self.generations[i] == g
+                    && self.columns[i].is_some()
+                {
+                    Ok(i)
+                } else {
+                    Err(pyo3::exceptions::PyValueError::new_err(
+                        "expired chart handle: the cached chart was evicted; recompute it with chart()",
+                    ))
+                }
+            })
+            .collect()
+    }
+
+    fn alloc_column(&mut self, col: Column<W>) -> usize {
         match self.free_list.pop() {
             Some(i) => {
                 self.columns[i] = Some(col);
@@ -244,6 +317,7 @@ impl RustEarley {
             None => {
                 self.columns.push(Some(col));
                 self.refcounts.push(0);
+                self.generations.push(0);
                 self.columns.len() - 1
             }
         }
@@ -256,21 +330,18 @@ impl RustEarley {
             self.refcounts[i] += 1;
         }
         self.access_counter += 1;
+        self.lru_order.insert(self.access_counter, key.clone());
         self.chart_cache.insert(key, (indices.to_vec(), self.access_counter));
         if let Some(max) = self.max_cache_size {
             while self.chart_cache.len() > max {
-                let lru_key = self
-                    .chart_cache
-                    .iter()
-                    .min_by_key(|(_, (_, stamp))| *stamp)
-                    .map(|(k, _)| k.clone())
-                    .unwrap();
+                let (_, lru_key) = self.lru_order.pop_first().unwrap();
                 let (evicted, _) = self.chart_cache.remove(&lru_key).unwrap();
                 for i in evicted {
                     self.refcounts[i] -= 1;
                     // The initial column is pinned by its extra refcount.
                     if self.refcounts[i] == 0 {
                         self.columns[i] = None;
+                        self.generations[i] += 1;
                         self.free_list.push(i);
                     }
                 }
@@ -283,6 +354,8 @@ impl RustEarley {
         self.access_counter += 1;
         let stamp = self.access_counter;
         if let Some(entry) = self.chart_cache.get_mut(&key) {
+            let moved = self.lru_order.remove(&entry.1).unwrap();
+            self.lru_order.insert(stamp, moved);
             entry.1 = stamp; // mark most recently used
             return entry.0.clone();
         }
@@ -326,7 +399,7 @@ impl RustEarley {
             .cloned()
             .unwrap_or_default();
 
-        let scan_weights: Vec<f64> = scan_items
+        let scan_weights: Vec<_> = scan_items
             .iter()
             .map(|item| self.col(prev_col_idx).i_chart[item])
             .collect();
@@ -359,7 +432,7 @@ impl RustEarley {
                 .cloned()
                 .unwrap_or_default();
 
-            let customer_weights: Vec<f64> = customers
+            let customer_weights: Vec<_> = customers
                 .iter()
                 .map(|item| self.col(col_j_idx).i_chart[item])
                 .collect();
@@ -369,7 +442,7 @@ impl RustEarley {
                 let rest = self.rest_ys[ys as usize];
                 Self::update_static(
                     &mut next_col, &mut queue, &mut q_set,
-                    i, x, rest, cw * y_weight,
+                    i, x, rest, cw.mul(y_weight),
                     self.order_max, &self.order, &self.first_ys,
                     &self.is_terminal_flag,
                 );
@@ -385,10 +458,10 @@ impl RustEarley {
     /// The innermost update function. Called extremely frequently.
     #[inline(always)]
     fn update_static(
-        col: &mut Column,
+        col: &mut Column<W>,
         queue: &mut BinaryHeap<QItem>,
         q_set: &mut HashSet<(u32, u32)>,
-        i: u32, x: u32, ys: u32, value: f64,
+        i: u32, x: u32, ys: u32, value: W,
         order_max: u32,
         order: &HashMap<u32, u32>,
         first_ys: &[u32],
@@ -399,7 +472,7 @@ impl RustEarley {
             // Complete item: phrase(I, X/[], K)
             let item = (i, x);
             if let Some(existing) = col.c_chart.get_mut(&item) {
-                *existing += value;
+                *existing = (*existing).add(value);
             } else {
                 // New complete item → add to priority queue
                 let priority = (k - i) as u64 * order_max as u64
@@ -413,7 +486,7 @@ impl RustEarley {
             // Incomplete item: phrase(I, X/[Y|...], K)
             let item = (i, x, ys);
             if let Some(existing) = col.i_chart.get_mut(&item) {
-                *existing += value;
+                *existing = (*existing).add(value);
             } else {
                 let first = first_ys[ys as usize];
                 col.waiting_for
@@ -425,7 +498,7 @@ impl RustEarley {
         }
     }
 
-    fn predict(&self, col: &mut Column) {
+    fn predict(&self, col: &mut Column<W>) {
         // PREDICT: phrase(K, X/Ys, K) += rule(X -> Ys)
         // with left-corner filtering
         let k = col.k;
@@ -460,11 +533,12 @@ impl RustEarley {
                     if ys == 0 {
                         // Nullary rule (shouldn't happen after nullaryremove, but handle it)
                         let item = (k, *x);
-                        *col.c_chart.entry(item).or_insert(0.0) += w;
+                        let e = col.c_chart.entry(item).or_insert(W::ZERO);
+                        *e = (*e).add(w);
                     } else {
                         let item = (k, *x, ys);
                         if let Some(existing) = col.i_chart.get_mut(&item) {
-                            *existing += w;
+                            *existing = (*existing).add(w);
                         } else {
                             let first = self.first_ys[ys as usize];
                             col.waiting_for
@@ -479,15 +553,15 @@ impl RustEarley {
         }
     }
 
-    fn next_token_weights_inner(&self, col_indices: &[usize]) -> HashMap<String, f64> {
+    fn next_token_weights_inner(&self, col_indices: &[usize]) -> HashMap<String, W> {
         let last_idx = *col_indices.last().unwrap();
         let col = self.col(last_idx);
 
-        // q(0, S) = 1.0
-        let mut q: HashMap<(u32, u32), f64> = HashMap::new();
-        q.insert((0, self.start), 1.0);
+        // q(0, S) = 1
+        let mut q: HashMap<(u32, u32), W> = HashMap::new();
+        q.insert((0, self.start), W::ONE);
 
-        let mut result: HashMap<String, f64> = HashMap::new();
+        let mut result: HashMap<String, W> = HashMap::new();
 
         // For each terminal Y that something is waiting for in the last column
         for (&y_id, items) in &col.waiting_for {
@@ -496,16 +570,16 @@ impl RustEarley {
                 continue;
             }
 
-            let mut total = 0.0f64;
+            let mut total = W::ZERO;
             for &(i, x, ys) in items {
                 if self.unit_ys[ys as usize] {
                     let node = (i, x);
                     let value = self.helper(node, col_indices, &mut q);
-                    total += col.i_chart[&(i, x, ys)] * value;
+                    total = total.add(col.i_chart[&(i, x, ys)].mul(value));
                 }
             }
 
-            if total != 0.0 {
+            if total != W::ZERO {
                 let terminal_str = &self.id_to_terminal[&y_id];
                 result.insert(terminal_str.clone(), total);
             }
@@ -519,25 +593,25 @@ impl RustEarley {
         &self,
         top: (u32, u32),
         col_indices: &[usize],
-        q: &mut HashMap<(u32, u32), f64>,
-    ) -> f64 {
+        q: &mut HashMap<(u32, u32), W>,
+    ) -> W {
         if let Some(&v) = q.get(&top) {
             return v;
         }
 
         // Stack-based iterative DFS
-        struct Frame {
+        struct Frame<V> {
             node: (u32, u32),
             edges: Vec<(u32, u32, u32)>,
             cursor: usize,
-            value: f64,
+            value: V,
         }
 
-        let mut stack: Vec<Frame> = vec![Frame {
+        let mut stack: Vec<Frame<W>> = vec![Frame {
             node: top,
             edges: Vec::new(),
             cursor: usize::MAX, // sentinel: edges not yet loaded
-            value: 0.0,
+            value: W::ZERO,
         }];
 
         while let Some(frame) = stack.last_mut() {
@@ -557,8 +631,8 @@ impl RustEarley {
                             let iw = self.col(col_j_idx).i_chart
                                 .get(&(pi, px, parent.edges[parent.cursor].2))
                                 .copied()
-                                .unwrap_or(0.0);
-                            parent.value += iw * val;
+                                .unwrap_or(Semiring::ZERO);
+                            parent.value = parent.value.add(iw.mul(val));
                             parent.cursor += 1;
                         }
                     }
@@ -598,8 +672,8 @@ impl RustEarley {
                         let iw = self.col(col_pj_idx).i_chart
                             .get(&(pi, px, pys))
                             .copied()
-                            .unwrap_or(0.0);
-                        parent.value += iw * value;
+                            .unwrap_or(Semiring::ZERO);
+                        parent.value = parent.value.add(iw.mul(value));
                         parent.cursor += 1;
                     }
                 }
@@ -615,8 +689,8 @@ impl RustEarley {
                     let iw = self.col(col_j_idx).i_chart
                         .get(&(pi, px, pys))
                         .copied()
-                        .unwrap_or(0.0);
-                    frame.value += iw * cached;
+                        .unwrap_or(Semiring::ZERO);
+                    frame.value = frame.value.add(iw.mul(cached));
                     frame.cursor += 1;
                 } else {
                     // Need to compute neighbor first — push it
@@ -624,7 +698,7 @@ impl RustEarley {
                         node: neighbor,
                         edges: Vec::new(),
                         cursor: usize::MAX,
-                        value: 0.0,
+                        value: Semiring::ZERO,
                     });
                 }
             }
@@ -633,6 +707,86 @@ impl RustEarley {
         q[&top]
     }
 }
+
+// ── Python-facing shells (PyO3 classes cannot be generic) ────────────────────
+
+macro_rules! earley_shell {
+    ($name:ident, $W:ty) => {
+        #[pyclass]
+        struct $name {
+            core: EarleyCore<$W>,
+        }
+
+        #[pymethods]
+        impl $name {
+            #[new]
+            #[pyo3(signature = (rhs, start, order, order_max, outgoing, first_ys, is_terminal_flags, rest_ys, unit_ys, terminal_to_id, id_to_terminal, nonterminals, empty_weight, max_cache_size=None))]
+            #[allow(clippy::too_many_arguments)]
+            fn new(
+                rhs: HashMap<u32, Vec<($W, u32)>>,
+                start: u32,
+                order: HashMap<u32, u32>,
+                order_max: u32,
+                outgoing: HashMap<u32, Vec<u32>>,
+                first_ys: Vec<u32>,
+                is_terminal_flags: Vec<bool>,
+                rest_ys: Vec<u32>,
+                unit_ys: Vec<bool>,
+                terminal_to_id: HashMap<String, u32>,
+                id_to_terminal: HashMap<u32, String>,
+                nonterminals: HashSet<u32>,
+                empty_weight: $W,
+                max_cache_size: Option<usize>,
+            ) -> Self {
+                $name {
+                    core: EarleyCore::new(
+                        rhs, start, order, order_max, outgoing, first_ys,
+                        is_terminal_flags, rest_ys, unit_ys, terminal_to_id,
+                        id_to_terminal, nonterminals, empty_weight, max_cache_size,
+                    ),
+                }
+            }
+
+            /// Parse a token sequence, return its weight (prefix weight).
+            fn parse(&mut self, tokens: Vec<String>) -> $W {
+                self.core.parse(tokens)
+            }
+
+            /// Compute chart for a token sequence. Returns an opaque,
+            /// generation-tagged handle for `next_token_weights`.
+            fn chart(&mut self, tokens: Vec<String>) -> Vec<(usize, u64)> {
+                let indices = self.core.chart(tokens);
+                self.core.tag_handle(&indices)
+            }
+
+            /// Compute next-token weights given a handle from `chart()`.
+            /// Returns a dict: terminal_string → weight.
+            /// Raises ValueError if the handle has expired (cache eviction).
+            fn next_token_weights(&self, handle: Vec<(usize, u64)>) -> PyResult<HashMap<String, $W>> {
+                let col_indices = self.core.validate_handle(&handle)?;
+                Ok(self.core.next_token_weights(col_indices))
+            }
+
+            /// Clear the chart cache.
+            fn clear_cache(&mut self) {
+                self.core.clear_cache()
+            }
+
+            /// Number of cached prefixes (diagnostics).
+            fn cache_len(&self) -> usize {
+                self.core.cache_len()
+            }
+
+            /// Number of live (non-reclaimed) columns (diagnostics).
+            fn live_columns(&self) -> usize {
+                self.core.live_columns()
+            }
+        }
+    };
+}
+
+earley_shell!(RustEarley, f64);
+earley_shell!(RustEarleyBool, bool);
 
 // ── Rescaled Column ──────────────────────────────────────────────────────────
 
@@ -676,8 +830,10 @@ struct RustEarleyRescaled {
 
     columns: Vec<Option<RescaledColumn>>,
     refcounts: Vec<u32>,
+    generations: Vec<u64>,
     free_list: Vec<usize>,
     chart_cache: HashMap<Vec<String>, (Vec<usize>, u64)>,
+    lru_order: BTreeMap<u64, Vec<String>>,
     access_counter: u64,
     initial_col_idx: usize,
     empty_weight: f64,
@@ -719,8 +875,10 @@ impl RustEarleyRescaled {
             nonterminals,
             columns: Vec::new(),
             refcounts: Vec::new(),
+            generations: Vec::new(),
             free_list: Vec::new(),
             chart_cache: HashMap::new(),
+            lru_order: BTreeMap::new(),
             access_counter: 0,
             initial_col_idx: 0,
             empty_weight,
@@ -733,6 +891,7 @@ impl RustEarleyRescaled {
         earley.initial_col_idx = earley.columns.len();
         earley.columns.push(Some(col));
         earley.refcounts.push(1); // pinned: never reclaimed
+        earley.generations.push(0);
 
         earley
     }
@@ -769,34 +928,41 @@ impl RustEarleyRescaled {
         value.ln() - self.log_rescale(&col_indices, 0, n)
     }
 
-    fn chart(&mut self, tokens: Vec<String>) -> Vec<usize> {
-        self.chart_inner(&tokens)
+    fn chart(&mut self, tokens: Vec<String>) -> Vec<(usize, u64)> {
+        let indices = self.chart_inner(&tokens);
+        self.tag_handle(&indices)
     }
 
-    /// Compute next-token weights given a chart.
+    /// Compute next-token weights given a handle from `chart()`.
     /// Returns a dict: terminal_string → weight.
+    /// Raises ValueError if the handle has expired (cache eviction).
     /// Note: rescaling cancels out after normalization, so we compute
     /// raw weights and normalize.
-    fn next_token_weights(&self, col_indices: Vec<usize>) -> HashMap<String, f64> {
+    fn next_token_weights(&self, handle: Vec<(usize, u64)>) -> PyResult<HashMap<String, f64>> {
+        let col_indices = self.validate_handle(&handle)?;
         let raw = self.next_token_weights_inner(&col_indices);
 
         // Normalize: sum all weights, divide each by total
         let total: f64 = raw.values().sum();
         if total == 0.0 {
-            return raw;
+            return Ok(raw);
         }
-        raw.into_iter().map(|(k, v)| (k, v / total)).collect()
+        Ok(raw.into_iter().map(|(k, v)| (k, v / total)).collect())
     }
 
     fn clear_cache(&mut self) {
         self.chart_cache.clear();
+        self.lru_order.clear();
         let initial = self.columns[self.initial_col_idx].take();
+        let gen = self.generations[self.initial_col_idx];
         self.columns.clear();
         self.refcounts.clear();
+        self.generations.clear();
         self.free_list.clear();
         self.initial_col_idx = 0;
         self.columns.push(initial);
         self.refcounts.push(1);
+        self.generations.push(gen);
     }
 
     /// Number of cached prefixes (diagnostics).
@@ -817,6 +983,30 @@ impl RustEarleyRescaled {
         self.columns[i].as_ref().expect("column was reclaimed")
     }
 
+    /// Tag arena indices with their slot generations → an expiry-checkable handle.
+    fn tag_handle(&self, indices: &[usize]) -> Vec<(usize, u64)> {
+        indices.iter().map(|&i| (i, self.generations[i])).collect()
+    }
+
+    /// Check a handle from `tag_handle`; errors if any column was reclaimed.
+    fn validate_handle(&self, handle: &[(usize, u64)]) -> PyResult<Vec<usize>> {
+        handle
+            .iter()
+            .map(|&(i, g)| {
+                if i < self.columns.len()
+                    && self.generations[i] == g
+                    && self.columns[i].is_some()
+                {
+                    Ok(i)
+                } else {
+                    Err(pyo3::exceptions::PyValueError::new_err(
+                        "expired chart handle: the cached chart was evicted; recompute it with chart()",
+                    ))
+                }
+            })
+            .collect()
+    }
+
     fn alloc_column(&mut self, col: RescaledColumn) -> usize {
         match self.free_list.pop() {
             Some(i) => {
@@ -826,6 +1016,7 @@ impl RustEarleyRescaled {
             None => {
                 self.columns.push(Some(col));
                 self.refcounts.push(0);
+                self.generations.push(0);
                 self.columns.len() - 1
             }
         }
@@ -838,21 +1029,18 @@ impl RustEarleyRescaled {
             self.refcounts[i] += 1;
         }
         self.access_counter += 1;
+        self.lru_order.insert(self.access_counter, key.clone());
         self.chart_cache.insert(key, (indices.to_vec(), self.access_counter));
         if let Some(max) = self.max_cache_size {
             while self.chart_cache.len() > max {
-                let lru_key = self
-                    .chart_cache
-                    .iter()
-                    .min_by_key(|(_, (_, stamp))| *stamp)
-                    .map(|(k, _)| k.clone())
-                    .unwrap();
+                let (_, lru_key) = self.lru_order.pop_first().unwrap();
                 let (evicted, _) = self.chart_cache.remove(&lru_key).unwrap();
                 for i in evicted {
                     self.refcounts[i] -= 1;
                     // The initial column is pinned by its extra refcount.
                     if self.refcounts[i] == 0 {
                         self.columns[i] = None;
+                        self.generations[i] += 1;
                         self.free_list.push(i);
                     }
                 }
@@ -881,6 +1069,8 @@ impl RustEarleyRescaled {
         self.access_counter += 1;
         let stamp = self.access_counter;
         if let Some(entry) = self.chart_cache.get_mut(&key) {
+            let moved = self.lru_order.remove(&entry.1).unwrap();
+            self.lru_order.insert(stamp, moved);
             entry.1 = stamp; // mark most recently used
             return entry.0.clone();
         }
@@ -924,7 +1114,7 @@ impl RustEarleyRescaled {
             .cloned()
             .unwrap_or_default();
 
-        let scan_weights: Vec<f64> = scan_items
+        let scan_weights: Vec<_> = scan_items
             .iter()
             .map(|item| self.col(prev_col_idx).i_chart[item])
             .collect();
@@ -957,7 +1147,7 @@ impl RustEarleyRescaled {
                 .cloned()
                 .unwrap_or_default();
 
-            let customer_weights: Vec<f64> = customers
+            let customer_weights: Vec<_> = customers
                 .iter()
                 .map(|item| self.col(col_j_idx).i_chart[item])
                 .collect();
@@ -967,7 +1157,7 @@ impl RustEarleyRescaled {
                 let rest = self.rest_ys[ys as usize];
                 Self::update_static(
                     &mut next_col, &mut queue, &mut q_set,
-                    i, x, rest, cw * y_weight,
+                    i, x, rest, cw.mul(y_weight),
                     self.order_max, &self.order, &self.first_ys,
                     &self.is_terminal_flag,
                 );
@@ -979,9 +1169,9 @@ impl RustEarleyRescaled {
 
         // Compute rescaling coefficient
         let num = self.col(prev_col_idx).c_chart
-            .get(&(0, self.start)).copied().unwrap_or(0.0);
+            .get(&(0, self.start)).copied().unwrap_or(Semiring::ZERO);
         let den = next_col.c_chart
-            .get(&(0, self.start)).copied().unwrap_or(0.0);
+            .get(&(0, self.start)).copied().unwrap_or(Semiring::ZERO);
 
         if den == 0.0 || num == 0.0 {
             next_col.rescale = 1.0;
@@ -1007,7 +1197,7 @@ impl RustEarleyRescaled {
         if ys == 0 {
             let item = (i, x);
             if let Some(existing) = col.c_chart.get_mut(&item) {
-                *existing += value;
+                *existing = (*existing).add(value);
             } else {
                 let priority = (k - i) as u64 * order_max as u64
                     + *order.get(&x).unwrap_or(&0) as u64;
@@ -1019,7 +1209,7 @@ impl RustEarleyRescaled {
         } else {
             let item = (i, x, ys);
             if let Some(existing) = col.i_chart.get_mut(&item) {
-                *existing += value;
+                *existing = (*existing).add(value);
             } else {
                 let first = first_ys[ys as usize];
                 col.waiting_for.entry(first).or_default().push(item);
@@ -1062,7 +1252,7 @@ impl RustEarleyRescaled {
                     } else {
                         let item = (k, *x, ys);
                         if let Some(existing) = col.i_chart.get_mut(&item) {
-                            *existing += w;
+                            *existing = (*existing).add(w);
                         } else {
                             let first = self.first_ys[ys as usize];
                             col.waiting_for.entry(first).or_default().push(item);
@@ -1079,7 +1269,7 @@ impl RustEarleyRescaled {
         let col = self.col(last_idx);
 
         let mut q: HashMap<(u32, u32), f64> = HashMap::new();
-        q.insert((0, self.start), 1.0);
+        q.insert((0, self.start), Semiring::ONE);
 
         let mut result: HashMap<String, f64> = HashMap::new();
 
@@ -1093,7 +1283,7 @@ impl RustEarleyRescaled {
                 if self.unit_ys[ys as usize] {
                     let node = (i, x);
                     let value = self.helper(node, col_indices, &mut q);
-                    total += col.i_chart[&(i, x, ys)] * value;
+                    total = total.add(col.i_chart[&(i, x, ys)].mul(value));
                 }
             }
 
@@ -1144,8 +1334,8 @@ impl RustEarleyRescaled {
                             let iw = self.col(col_j_idx).i_chart
                                 .get(&(pi, px, parent.edges[parent.cursor].2))
                                 .copied()
-                                .unwrap_or(0.0);
-                            parent.value += iw * val;
+                                .unwrap_or(Semiring::ZERO);
+                            parent.value = parent.value.add(iw.mul(val));
                             parent.cursor += 1;
                         }
                     }
@@ -1182,8 +1372,8 @@ impl RustEarleyRescaled {
                         let iw = self.col(col_pj_idx).i_chart
                             .get(&(pi, px, pys))
                             .copied()
-                            .unwrap_or(0.0);
-                        parent.value += iw * value;
+                            .unwrap_or(Semiring::ZERO);
+                        parent.value = parent.value.add(iw.mul(value));
                         parent.cursor += 1;
                     }
                 }
@@ -1197,15 +1387,15 @@ impl RustEarleyRescaled {
                     let iw = self.col(col_j_idx).i_chart
                         .get(&(pi, px, pys))
                         .copied()
-                        .unwrap_or(0.0);
-                    frame.value += iw * cached;
+                        .unwrap_or(Semiring::ZERO);
+                    frame.value = frame.value.add(iw.mul(cached));
                     frame.cursor += 1;
                 } else {
                     stack.push(Frame {
                         node: neighbor,
                         edges: Vec::new(),
                         cursor: usize::MAX,
-                        value: 0.0,
+                        value: Semiring::ZERO,
                     });
                 }
             }
@@ -1220,6 +1410,7 @@ impl RustEarleyRescaled {
 #[pymodule]
 fn genlm_earley(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<RustEarley>()?;
+    m.add_class::<RustEarleyBool>()?;
     m.add_class::<RustEarleyRescaled>()?;
     Ok(())
 }

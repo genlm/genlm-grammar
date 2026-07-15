@@ -10,7 +10,7 @@ from collections import defaultdict
 
 from genlm.grammar.cfglm import EOS, add_EOS, locally_normalize
 from genlm.grammar.lm import LM
-from genlm.grammar.semiring import Float
+from genlm.grammar.semiring import Boolean, Float
 from genlm.grammar.cfg import CFG
 from genlm.grammar.util import DEFAULT_MAX_CACHE_SIZE
 
@@ -18,6 +18,11 @@ try:
     from genlm_earley import RustEarley
 except ImportError:
     RustEarley = None
+
+try:
+    from genlm_earley import RustEarleyBool
+except ImportError:  # extension built before the Boolean engine existed
+    RustEarleyBool = None
 
 _sum = lambda x, R: x[0] + _sum(x[1:], R) if len(x) > 0 else R.zero
 
@@ -31,13 +36,16 @@ class EarleyRust:
     then serialises the lookup tables into the Rust RustEarley object.
 
     `max_cache_size` bounds the number of cached prefixes (LRU eviction);
-    defaults to 10,000, None means unbounded. Note: eviction (like clear_cache)
-    invalidates chart handles returned by earlier `chart()` calls, so consume
-    a handle before the next `chart()`/`parse()` call.
+    defaults to 10,000, None means unbounded. Eviction (like clear_cache)
+    invalidates chart handles returned by earlier `chart()` calls; using an
+    expired handle raises ValueError rather than returning wrong results.
     """
 
+    _ENGINE = RustEarley
+    _WEIGHT = staticmethod(float)
+
     def __init__(self, cfg, max_cache_size=DEFAULT_MAX_CACHE_SIZE):
-        if RustEarley is None:
+        if self._ENGINE is None:
             raise ImportError(
                 "genlm_earley Rust extension not found. "
                 "Build with: cd rust && maturin develop --release"
@@ -75,7 +83,7 @@ class EarleyRust:
             for r in cfg.rhs[X]:
                 if r.body == ():
                     continue
-                rhs[X].append((float(r.w), int(intern_Ys(r.body))))
+                rhs[X].append((self._WEIGHT(r.w), int(intern_Ys(r.body))))
 
         first_Ys_raw = [None] * len(intern_Ys)
         rest_Ys = [0] * len(intern_Ys)
@@ -117,12 +125,12 @@ class EarleyRust:
         nonterminals = set(int(n) for n in cfg.N)
 
         # Empty string weight from start symbol
-        empty_weight = float(
+        empty_weight = self._WEIGHT(
             _sum([r.w for r in cfg.rhs[cfg.S] if r.body == ()], cfg.R)
         )
 
         # ── Construct the Rust engine ──────────────────────────────────────
-        self._rust = RustEarley(
+        self._rust = self._ENGINE(
             rhs={int(k): v for k, v in rhs.items()},
             start=int(cfg.S),
             order={int(k): int(v) for k, v in order.items()},
@@ -156,7 +164,6 @@ class EarleyRust:
         """Compute next-token weights from a chart. Returns a dict."""
         raw = self._rust.next_token_weights(col_indices)
         # Convert to the Chart format expected by callers
-        from genlm.grammar.chart import Chart
         result = self.cfg.R.chart()
         for terminal_str, weight in raw.items():
             result[terminal_str] = self.cfg.R(weight)
@@ -174,6 +181,21 @@ class EarleyRust:
             def clear(self):
                 self._rust.clear_cache()
         return _CacheProxy(self._rust)
+
+
+class EarleyBoolRust(EarleyRust):
+    """
+    Boolean-semiring variant of EarleyRust (weights are True/False, with
+    ⊕ = or and ⊗ = and). Requires a CFG over the Boolean semiring.
+    """
+
+    _ENGINE = RustEarleyBool
+    _WEIGHT = staticmethod(lambda w: bool(w.score))
+
+    def __init__(self, cfg, max_cache_size=DEFAULT_MAX_CACHE_SIZE):
+        if cfg.R is not Boolean:
+            raise ValueError("EarleyBoolRust requires a CFG over the Boolean semiring")
+        super().__init__(cfg, max_cache_size=max_cache_size)
 
 
 class EarleyRustLM(LM):
@@ -196,3 +218,24 @@ class EarleyRustLM(LM):
     @classmethod
     def from_string(cls, x, semiring=Float, **kwargs):
         return cls(locally_normalize(CFG.from_string(x, semiring), **kwargs))
+
+
+class EarleyBoolRustLM(LM):
+    """Boolean CFG language model using the Rust Earley backend (mirrors BoolCFGLM)."""
+
+    def __init__(self, cfg, max_cache_size=DEFAULT_MAX_CACHE_SIZE):
+        if EOS not in cfg.V:
+            cfg = add_EOS(cfg)
+        if cfg.R is not Boolean:
+            cfg = cfg.map_values(lambda x: Boolean(x > 0), Boolean)
+        self.cfg = cfg
+        self.model = EarleyBoolRust(cfg.prefix_grammar, max_cache_size=max_cache_size)
+        super().__init__(V=cfg.V, eos=EOS)
+
+    def p_next(self, context):
+        assert set(context) <= self.V, f"OOVs detected: {set(context) - self.V}"
+        p = self.model.next_token_weights(self.model.chart(context)).trim()
+        return Float.chart({w: 1 for w in p})
+
+    def clear_cache(self):
+        self.model.clear_cache()
